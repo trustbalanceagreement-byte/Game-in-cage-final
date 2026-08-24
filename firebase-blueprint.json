@@ -1,0 +1,91 @@
+{
+  "namespaces": {
+    "firestore": {
+      "collections": {
+        "users": {
+          "fields": {
+            "uid": { "type": "string" },
+            "name": { "type": "string" },
+            "email": { "type": "string" },
+            "phone": { "type": "string" },
+            "createdAt": { "type": "string" }
+          },
+          "rules": {
+            "read": "true",
+            "write": "true"
+          }
+        },
+        "notifications": {
+          "fields": {
+            "id": { "type": "string" },
+            "userId": { "type": "string" },
+            "title": { "type": "string" },
+            "message": { "type": "string" },
+            "createdAt": { "type": "number" },
+            "viewed": { "type": "boolean" }
+          },
+          "rules": {
+            "read": "true",
+            "write": "true"
+          }
+        },
+        "events": {
+          "fields": {
+             "id": { "type": "string" },
+             "type": { "type": "string" },
+             "mediaUrl": { "type": "string" },
+             "caption": { "type": "string" },
+             "createdAt": { "type": "number" }
+          },
+          "rules": {
+            "read": "true",
+            "write": "true"
+          }
+        },
+        "settings": {
+          "fields": {
+            "id": { "type": "string" },
+            "heroImageUrl": { "type": "string" },
+            "updatedAt": { "type": "number" }
+          },
+          "rules": {
+            "read": "true",
+            "write": "true"
+          }
+        },
+        "tournaments": {
+          "fields": {
+            "title": { "type": "string" },
+            "type": { "type": "string" },
+            "mediaUrl": { "type": "string" },
+            "caption": { "type": "string" },
+            "price": { "type": "string" },
+            "createdAt": { "type": "number" },
+            "eventDate": { "type": "string" },
+            "eventTime": { "type": "string" }
+          },
+          "rules": {
+            "read": "true",
+            "write": "true"
+          }
+        },
+        "tournament_bookings": {
+          "fields": {
+            "tournamentId": { "type": "string" },
+            "tournamentTitle": { "type": "string" },
+            "name": { "type": "string" },
+            "gamerTag": { "type": "string" },
+            "email": { "type": "string" },
+            "phone": { "type": "string" },
+            "teamName": { "type": "string" },
+            "createdAt": { "type": "number" }
+          },
+          "rules": {
+            "read": "true",
+            "write": "true"
+          }
+        }
+      }
+    }
+  }
+}

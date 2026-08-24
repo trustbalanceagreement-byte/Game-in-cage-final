@@ -1,0 +1,8 @@
+{
+  "name": "Copy of Game in Cage",
+  "description": "Premium gaming cafe in Kalyani featuring high-end PCs, console cages, VR units, tournament events, and custom refreshments. Book your station slot online.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
