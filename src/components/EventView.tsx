@@ -258,11 +258,11 @@ export default function EventView({ onInitiatePayment, setTab }: EventViewProps 
         });
       });
       list.sort((a, b) => b.createdAt - a.createdAt);
-      setPosts(list.length > 0 ? list : FALLBACK_EVENTS);
+      setPosts(list);
       setLoadingEvents(false);
     }, (error) => {
       console.warn("Events listener error:", error);
-      setPosts(FALLBACK_EVENTS);
+      setPosts([]);
       setLoadingEvents(false);
     });
 
@@ -545,26 +545,26 @@ export default function EventView({ onInitiatePayment, setTab }: EventViewProps 
               </button>
 
               {bookingSuccess ? (
-                <div className="text-center py-8 space-y-6">
-                  <div className="h-16 w-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto text-emerald-400">
-                    <CheckCircle className="h-8 w-8 animate-bounce" />
+                <div className="text-center py-4 space-y-4">
+                  <div className="h-10 w-10 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto text-emerald-400">
+                    <CheckCircle className="h-5 w-5" />
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="font-display font-medium text-2xl text-white uppercase tracking-wider">
+                  <div className="space-y-1">
+                    <h3 className="font-display font-medium text-lg sm:text-xl text-white uppercase tracking-wider">
                       Registration Submitted!
                     </h3>
-                    <p className="text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
+                    <p className="text-[11px] text-gray-400 max-w-sm mx-auto leading-relaxed">
                       Your tournament slot is drafted. To confirm your entry, proceed with the final steps using our WhatsApp backplane.
                     </p>
                   </div>
 
                   {/* HOW TO PROMPT (Mandated) */}
-                  <div className="bg-red-950/10 border border-red-900/30 rounded-2xl p-5 text-left space-y-3">
-                    <span className="text-[10px] font-mono text-red-400 font-bold tracking-widest uppercase flex items-center gap-1.5">
-                      <Info className="h-4 w-4" />
+                  <div className="bg-red-950/10 border border-red-900/30 rounded-xl p-3.5 text-left space-y-2">
+                    <span className="text-[9px] font-mono text-red-400 font-bold tracking-widest uppercase flex items-center gap-1.5">
+                      <Info className="h-3.5 w-3.5" />
                       <span>CRITICAL NEXT STEPS REQUIRED</span>
                     </span>
-                    <ol className="text-xs text-gray-300 font-sans space-y-2.5 list-decimal pl-4 leading-relaxed">
+                    <ol className="text-[11px] text-gray-300 font-sans space-y-1.5 list-decimal pl-4 leading-relaxed">
                       <li>
                         <strong className="text-white">Form Submission</strong>: Your registration details are logged in our secure datastore.
                       </li>
@@ -580,31 +580,22 @@ export default function EventView({ onInitiatePayment, setTab }: EventViewProps 
                     </ol>
                   </div>
 
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-2.5 pt-1">
                     {/* Primary Direct Payment Button */}
                     <button
                       type="button"
                       onClick={handleProceedToPayment}
-                      className="w-full bg-gradient-to-r from-red-600 via-red-500 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl py-3.5 px-4 text-xs font-mono font-bold uppercase tracking-wider text-center flex items-center justify-center gap-2 shadow-xl shadow-red-950/60 active:scale-[0.99] transition-all cursor-pointer border border-red-400/30"
+                      className="w-full bg-gradient-to-r from-red-600 via-red-500 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl py-2.5 px-4 text-[11px] font-mono font-bold uppercase tracking-wider text-center flex items-center justify-center gap-2 shadow-lg shadow-red-950/60 active:scale-[0.99] transition-all cursor-pointer border border-red-400/30"
                     >
-                      <CreditCard className="h-4 w-4 text-white" />
+                      <CreditCard className="h-3.5 w-3.5 text-white" />
                       <span>Payment Now ({selectedTournament.price})</span>
                     </button>
 
-                    {/* Secondary WhatsApp & Close Actions */}
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <a 
-                        href={`https://wa.me/919876543210?text=${encodeURIComponent(`I just registered for ${selectedTournament.title} with GamerTag: ${gamerTag.trim() || fullName.trim()}. Here is my payment confirmation.`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-3 text-xs font-mono font-bold uppercase tracking-wider text-center flex items-center justify-center gap-2 shadow-lg"
-                      >
-                        <Phone className="h-3.5 w-3.5" />
-                        <span>Send Screenshot on WhatsApp</span>
-                      </a>
+                    {/* Close Action */}
+                    <div>
                       <button 
                         onClick={closeBookingModal}
-                        className="sm:px-6 bg-white/[0.04] hover:bg-white/10 text-white border border-white/10 rounded-xl py-3 text-xs font-mono uppercase tracking-wider cursor-pointer"
+                        className="w-full bg-white/[0.04] hover:bg-white/10 text-gray-300 border border-white/10 rounded-xl py-2.5 text-[11px] font-mono uppercase tracking-wider cursor-pointer transition-colors"
                       >
                         Close Window
                       </button>

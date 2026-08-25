@@ -102,31 +102,31 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
   };
 
   return (
-    <div className="space-y-16 pt-2 pb-8">
+    <div className="space-y-12 pt-2 pb-8">
       {/* SECTION HEADER */}
-      <div className="text-center space-y-3">
-        <span className="font-mono text-[#ef4444] text-xs font-semibold tracking-[0.2em] uppercase">SPECIFICATION MATRIX</span>
-        <h2 className="font-['Arial'] text-center font-normal text-2xl sm:text-3xl text-white tracking-tight uppercase">
+      <div className="text-center space-y-2">
+        <span className="font-mono text-[#ef4444] text-[10px] font-semibold tracking-[0.2em] uppercase">SPECIFICATION MATRIX</span>
+        <h2 className="font-['Arial'] text-center font-normal text-xl sm:text-2xl text-white tracking-tight uppercase">
           Stations &amp; <span className="text-[#ef4444] font-['Arial'] font-normal not-italic no-underline">Refreshments</span>
         </h2>
-        <p className="text-gray-400 text-xs sm:text-sm max-w-xl mx-auto font-sans leading-relaxed">
+        <p className="text-gray-400 text-xs max-w-lg mx-auto font-sans leading-relaxed">
           Inspect our elite tactile configurations and pre-select high-frequency focus fuels designed for prolonged session comfort.
         </p>
       </div>
 
       {/* 1. INTERACTIVE STATION CONFIGS */}
-      <section className="space-y-6">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-white/[0.04] pb-5">
+      <section className="space-y-5">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 border-b border-white/[0.04] pb-4">
           <div>
-            <h3 className="font-sans font-medium text-lg text-white uppercase tracking-wider flex items-center gap-2">
-              <Cpu className="h-5 w-5 text-[#ef4444]" />
+            <h3 className="font-sans font-medium text-sm sm:text-base text-white uppercase tracking-wider flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-[#ef4444]" />
               <span>COOPERATIVE MATRIX ZONES</span>
             </h3>
-            <p className="text-xs font-mono text-gray-500 uppercase tracking-wider mt-1">PRIVATE LAYOUT SHELTERS MINIMIZE VISUAL AND AUDIO SPILLAGE</p>
+            <p className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mt-0.5">PRIVATE LAYOUT SHELTERS MINIMIZE VISUAL AND AUDIO SPILLAGE</p>
           </div>
 
           {/* Station category options */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {[
               { id: 'all', label: 'All Cages' },
               { id: 'console-cage', label: 'PS5 Cages' },
@@ -138,7 +138,7 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
                 id={`station-filter-${btn.id}`}
                 key={btn.id}
                 onClick={() => setStationFilter(btn.id as any)}
-                className={`px-3 py-1.5 rounded-lg font-sans text-xs font-medium uppercase tracking-wider transition-all duration-150 cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg font-sans text-[11px] font-medium uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                   stationFilter === btn.id 
                     ? 'bg-[#ef4444] text-[#000000]' 
                     : 'bg-white/[0.02] text-gray-400 border border-white/5 hover:border-[#ef4444]/20 hover:text-white'
@@ -151,13 +151,13 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
         </div>
 
         {/* Stations grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredStations.map((station, idx) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {filteredStations.map((station) => (
             <div 
               key={station.id}
               className="group bg-white/[0.02] border border-white/[0.04] rounded-2xl overflow-hidden flex flex-col justify-between shadow-xl hover:border-[#ef4444]/25 transition-all duration-300"
             >
-              <div className="relative h-56 overflow-hidden bg-black">
+              <div className="relative h-48 sm:h-52 overflow-hidden bg-black">
                 <img 
                   src={station.image} 
                   alt={station.name}
@@ -167,54 +167,54 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
                 <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-transparent to-transparent" />
                 
                 {/* Hourly Rate Overlay Badge */}
-                <div className="absolute top-4 right-4 rounded-lg bg-[#000000]/90 text-[#ef4444] font-mono text-xs font-semibold px-3 py-1.5 border border-[#ef4444]/20 shadow-md uppercase tracking-wider">
+                <div className="absolute top-3 right-3 rounded-lg bg-[#000000]/90 text-[#ef4444] font-mono text-[10px] font-bold px-2.5 py-1 border border-[#ef4444]/20 shadow-md uppercase tracking-wider">
                   {station.id === 'pool-board' ? '₹50/15min' : `₹${station.hourlyRate}/hr`}
                 </div>
               </div>
 
-              <div className="p-6 space-y-5 flex-1 flex flex-col justify-between">
-                <div className="space-y-3">
-                  <h4 className="font-mono font-semibold text-xl text-white tracking-wide uppercase not-italic no-underline">
+              <div className="p-4 sm:p-5 space-y-3.5 flex-1 flex flex-col justify-between">
+                <div className="space-y-2.5">
+                  <h4 className="font-mono font-bold text-sm sm:text-base text-white tracking-wide uppercase not-italic no-underline">
                     {station.name}
                   </h4>
 
-                  {/* Custom Pricing Details Block requested by User */}
-                  <div className="bg-[#ef4444]/5 border border-[#ef4444]/20 rounded-xl p-3 my-3">
-                    <span className="block text-[9px] font-mono text-[#ef4444] uppercase tracking-widest mb-1.5 font-bold">Pricing details</span>
-                    <div className="flex flex-col gap-1 text-xs">
+                  {/* Custom Pricing Details Block */}
+                  <div className="bg-[#ef4444]/5 border border-[#ef4444]/20 rounded-xl p-2.5 my-2">
+                    <span className="block text-[8.5px] font-mono text-[#ef4444] uppercase tracking-widest mb-1 font-bold">Pricing details</span>
+                    <div className="flex flex-col gap-0.5 text-[11px]">
                       <div className="flex justify-between items-center text-white">
-                        <span className="font-sans text-gray-300">Rate:</span>
-                        <span className="font-mono font-bold text-white">
+                        <span className="font-sans text-gray-300 text-[11px]">Rate:</span>
+                        <span className="font-mono font-bold text-white text-[11px]">
                           {station.id === 'pool-board' ? '₹50 per person' : `₹${station.hourlyRate} (1 Hour)`}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center text-xs text-gray-400">
+                      <div className="flex justify-between items-center text-[10px] text-gray-400">
                         <span>Starting Price:</span>
-                        <span className="font-mono text-[#ef4444] font-semibold">
+                        <span className="font-mono text-[#ef4444] font-semibold text-[10px]">
                           {station.id === 'pool-board' 
                             ? '₹50 / Person (15 min)' 
                             : `₹${station.startingPrice} (${station.startingDuration || '30 Mins'})`}
                         </span>
                       </div>
                       {station.minPersons && (
-                        <div className="text-[10px] text-[#ef4444] font-mono mt-1 border-t border-white/5 pt-1 uppercase">
+                        <div className="text-[9px] text-[#ef4444] font-mono mt-0.5 border-t border-white/5 pt-0.5 uppercase">
                           ⚠️ Minimum {station.minPersons} persons required
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="pt-2">
-                    <span className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest mb-2 font-bold">Hardware Specifications</span>
-                    <div className="space-y-2 bg-black/40 p-4 border border-white/[0.04] rounded-xl">
+                  <div>
+                    <span className="block text-[8.5px] font-mono text-gray-500 uppercase tracking-widest mb-1.5 font-bold">Hardware Specifications</span>
+                    <div className="space-y-1.5 bg-black/40 p-2.5 sm:p-3 border border-white/[0.04] rounded-xl">
                       {station.specs.slice(0, 3).map((spec, index) => (
-                        <div key={index} className="flex gap-2 text-xs font-mono text-gray-300">
+                        <div key={index} className="flex gap-1.5 text-[11px] font-mono text-gray-300 leading-snug">
                           <span className="text-[#ef4444] font-bold">•</span>
                           <span>{spec}</span>
                         </div>
                       ))}
                       {station.specs.length > 3 && (
-                        <div className="text-[9px] text-[#ef4444] font-mono text-right font-semibold uppercase tracking-widest pt-1">
+                        <div className="text-[8px] text-[#ef4444] font-mono text-right font-semibold uppercase tracking-widest pt-0.5">
                           + {station.specs.length - 3} SPEC DETAILS AVAILABLE
                         </div>
                       )}
@@ -222,18 +222,18 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
                   </div>
                 </div>
 
-                <div className="flex gap-3 items-center pt-2">
+                <div className="flex gap-2.5 items-center pt-1">
                   <button
                     id={`details-btn-${station.id}`}
                     onClick={() => setSelectedStation(station)}
-                    className="flex-1 py-2.5 rounded-lg bg-white/[0.02] border border-white/10 hover:border-[#ef4444]/30 text-gray-300 hover:text-white font-sans text-xs uppercase tracking-wider font-semibold transition-colors cursor-pointer"
+                    className="flex-1 py-2 rounded-lg bg-white/[0.02] border border-white/10 hover:border-[#ef4444]/30 text-gray-300 hover:text-white font-sans text-[11px] uppercase tracking-wider font-bold transition-colors cursor-pointer"
                   >
                     View Specs
                   </button>
                   <button
                     id={`book-rig-btn-${station.id}`}
                     onClick={() => handleBookRig(station.id)}
-                    className="flex-1 py-2.5 rounded-lg bg-[#ef4444] text-[#000000] hover:bg-white text-xs uppercase tracking-wider font-semibold transition-colors cursor-pointer"
+                    className="flex-1 py-2 rounded-lg bg-[#ef4444] text-[#000000] hover:bg-white text-[11px] uppercase tracking-wider font-bold transition-colors cursor-pointer"
                   >
                     Book Cage
                   </button>
@@ -245,21 +245,21 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
       </section>
 
       {/* 2. EXCLUSIVE GAMING COMBOS */}
-      <section className="space-y-6">
-        <div className="border-b border-white/[0.04] pb-5">
-          <h3 className="font-mono font-semibold text-lg text-white uppercase tracking-wider flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-[#ef4444]" />
+      <section className="space-y-5">
+        <div className="border-b border-white/[0.04] pb-4">
+          <h3 className="font-mono font-semibold text-sm sm:text-base text-white uppercase tracking-wider flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-[#ef4444]" />
             <span>EXCLUSIVE GAMING COMBOS</span>
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {GAMING_PACKAGES.map((pkg) => (
             <div 
               key={pkg.id}
               className="group bg-white/[0.02] border border-[#ef4444]/20 hover:border-[#ef4444]/65 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xl transition-all duration-300"
             >
-              <div className="relative h-64 overflow-hidden bg-black">
+              <div className="relative h-48 sm:h-52 overflow-hidden bg-black">
                 <img 
                   src={pkg.image} 
                   alt={pkg.name}
@@ -269,30 +269,30 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
                 <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-transparent to-transparent" />
                 
                 {/* Flat Price Badge */}
-                <div className="absolute top-4 right-4 rounded-lg bg-[#ef4444] text-[#000000] font-mono text-sm font-black px-4 py-2 shadow-lg uppercase tracking-wider">
+                <div className="absolute top-3 right-3 rounded-lg bg-[#ef4444] text-[#000000] font-mono text-xs font-black px-3 py-1 shadow-lg uppercase tracking-wider">
                   ₹{pkg.price} Flat Rate
                 </div>
 
                 {/* Duration Badge */}
-                <div className="absolute bottom-4 left-4 rounded-md bg-[#000000]/80 text-[#ef4444] font-mono text-xs px-2.5 py-1.5 border border-[#ef4444]/20 shadow-md">
+                <div className="absolute bottom-3 left-3 rounded-md bg-[#000000]/80 text-[#ef4444] font-mono text-[10px] px-2 py-1 border border-[#ef4444]/20 shadow-md">
                   {pkg.duration} Total
                 </div>
               </div>
 
-              <div className="p-6 space-y-6 flex-1 flex flex-col justify-between">
-                <div className="space-y-4">
+              <div className="p-4 sm:p-5 space-y-4 flex-1 flex flex-col justify-between">
+                <div className="space-y-3">
                   <div>
-                    <h4 className="font-mono font-semibold text-2xl text-white tracking-wide uppercase not-italic no-underline">
+                    <h4 className="font-mono font-bold text-sm sm:text-base text-white tracking-wide uppercase not-italic no-underline">
                       {pkg.name}
                     </h4>
                   </div>
 
-                  <div className="pt-2">
-                    <span className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest mb-3 font-bold font-semibold">What's Included in Package</span>
-                    <div className="grid grid-cols-1 gap-2.5 bg-black/50 p-4 border border-white/[0.04] rounded-xl">
+                  <div>
+                    <span className="block text-[8.5px] font-mono text-gray-500 uppercase tracking-widest mb-1.5 font-bold">What's Included in Package</span>
+                    <div className="grid grid-cols-1 gap-1.5 bg-black/50 p-3 border border-white/[0.04] rounded-xl">
                       {pkg.details.map((detail, index) => (
-                        <div key={index} className="flex gap-2.5 items-center text-xs font-mono text-gray-300">
-                          <CheckCircle className="h-4 w-4 text-[#ef4444] flex-shrink-0" />
+                        <div key={index} className="flex gap-2 items-center text-[11px] font-mono text-gray-300">
+                          <CheckCircle className="h-3.5 w-3.5 text-[#ef4444] flex-shrink-0" />
                           <span>{detail}</span>
                         </div>
                       ))}
@@ -300,11 +300,11 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
                   </div>
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-1">
                   <button
                     id={`book-package-btn-${pkg.id}`}
                     onClick={() => handleBookPackage(pkg.id)}
-                    className="w-full py-3 rounded-lg bg-[#ef4444] text-[#000000] hover:bg-white text-xs uppercase tracking-wider font-semibold transition-colors cursor-pointer"
+                    className="w-full py-2.5 rounded-lg bg-[#ef4444] text-[#000000] hover:bg-white text-[11px] uppercase tracking-wider font-bold transition-colors cursor-pointer"
                   >
                     Book Package Now
                   </button>
@@ -322,32 +322,32 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
             className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[100000]"
             onClick={() => setSelectedStation(null)}
           />
-          <div className="relative z-[100001] bg-[#000000] border border-white/10 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 overflow-hidden my-auto">
+          <div className="relative z-[100001] bg-[#000000] border border-white/10 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 overflow-hidden my-auto">
             <div className="absolute inset-0 opacity-[0.01] grid-overlay pointer-events-none" />
             
             <div className="relative z-10 flex justify-between items-start">
               <div>
-                <span className="font-mono text-[9px] text-[#ef4444] uppercase font-semibold tracking-widest">{selectedStation.category} SYSTEM INTEGRITY</span>
-                <h3 className="font-display font-medium text-2xl text-white tracking-wide uppercase italic mt-1">{selectedStation.name}</h3>
+                <span className="font-mono text-[8.5px] text-[#ef4444] uppercase font-bold tracking-widest">{selectedStation.category} SYSTEM INTEGRITY</span>
+                <h3 className="font-display font-medium text-lg sm:text-xl text-white tracking-wide uppercase italic mt-0.5">{selectedStation.name}</h3>
               </div>
               <button 
                 id="close-spec-modal"
                 onClick={() => setSelectedStation(null)}
-                className="p-1 px-3 bg-black/60 rounded-lg border border-white/10 hover:border-white/30 font-mono text-[10px] uppercase font-bold text-gray-400 hover:text-white cursor-pointer"
+                className="p-1 px-2.5 bg-black/60 rounded-lg border border-white/10 hover:border-white/30 font-mono text-[9px] uppercase font-bold text-gray-400 hover:text-white cursor-pointer"
               >
                 ✕ Close
               </button>
             </div>
 
-            <div className="relative z-10 text-xs text-gray-400 font-sans leading-relaxed">
+            <div className="relative z-10 text-[11px] text-gray-400 font-sans leading-relaxed">
               {selectedStation.description}
             </div>
 
-            <div className="relative z-10 space-y-2.5">
-              <span className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest leading-none font-bold">SPECIFICATION OVERVIEW</span>
-              <div className="bg-black/65 p-4 rounded-xl border border-white/[0.04] space-y-2.5">
+            <div className="relative z-10 space-y-1.5">
+              <span className="block text-[8.5px] font-mono text-gray-500 uppercase tracking-widest leading-none font-bold">SPECIFICATION OVERVIEW</span>
+              <div className="bg-black/65 p-3 rounded-xl border border-white/[0.04] space-y-1.5">
                 {selectedStation.specs.map((item, id) => (
-                  <div key={id} className="flex gap-2 text-xs font-mono text-gray-300">
+                  <div key={id} className="flex gap-1.5 text-[11px] font-mono text-gray-300">
                     <span className="text-[#ef4444] font-bold">•</span>
                     <span>{item}</span>
                   </div>
@@ -355,28 +355,28 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
               </div>
             </div>
 
-            <div className="relative z-10 space-y-2.1 gap-1">
-              <span className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest leading-none font-bold">SHELTER BENEFITS</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+            <div className="relative z-10 space-y-1.5">
+              <span className="block text-[8.5px] font-mono text-gray-500 uppercase tracking-widest leading-none font-bold">SHELTER BENEFITS</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-1">
                 {selectedStation.features.map((feat, idx) => (
-                  <div key={idx} className="flex gap-1.5 items-center text-[11px] text-gray-400 font-sans">
-                    <CheckCircle className="h-3.5 w-3.5 text-[#ef4444] flex-shrink-0" />
+                  <div key={idx} className="flex gap-1.5 items-center text-[10px] text-gray-400 font-sans">
+                    <CheckCircle className="h-3 w-3 text-[#ef4444] flex-shrink-0" />
                     <span>{feat}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="relative z-10 pt-4 border-t border-white/[0.06] flex items-center justify-between gap-4">
+            <div className="relative z-10 pt-3 border-t border-white/[0.06] flex items-center justify-between gap-3">
               <div>
-                <span className="block text-[9px] font-mono text-gray-500 uppercase font-semibold">UNIT PAYABLE RATE</span>
-                <span className="font-sans font-light text-white text-xl">₹{selectedStation.hourlyRate} <span className="text-xs text-gray-400 font-mono">/ hr</span></span>
+                <span className="block text-[8.5px] font-mono text-gray-500 uppercase font-semibold">UNIT PAYABLE RATE</span>
+                <span className="font-sans font-light text-white text-base">₹{selectedStation.hourlyRate} <span className="text-[10px] text-gray-400 font-mono">/ hr</span></span>
               </div>
-              <div className="flex gap-2.5">
+              <div className="flex gap-2">
                 <button
                   id="modal-cancel-btn"
                   onClick={() => setSelectedStation(null)}
-                  className="px-4 py-2 bg-transparent border border-white/10 rounded-lg text-xs font-sans font-semibold text-gray-400 hover:text-white uppercase cursor-pointer"
+                  className="px-3 py-1.5 bg-transparent border border-white/10 rounded-lg text-[11px] font-sans font-semibold text-gray-400 hover:text-white uppercase cursor-pointer"
                 >
                   Close
                 </button>
@@ -387,7 +387,7 @@ export default function ServiceView({ setTab, setSelectedStationId, setSelectedP
                     setSelectedStation(null);
                     handleBookRig(id);
                   }}
-                  className="px-5 py-2 rounded-lg bg-[#ef4444] text-[#000000] hover:bg-white text-xs font-sans font-semibold uppercase tracking-wider cursor-pointer"
+                  className="px-4 py-1.5 rounded-lg bg-[#ef4444] text-[#000000] hover:bg-white text-[11px] font-sans font-semibold uppercase tracking-wider cursor-pointer"
                 >
                   Reserve Grid
                 </button>

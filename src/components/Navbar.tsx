@@ -156,7 +156,7 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
 
   return (
     <header className="sticky top-0 z-50 w-full bg-black border-b border-red-600/20">
-      <div className="mx-auto flex max-w-7xl h-16 items-center justify-between px-4 sm:px-6">
+      <div className="mx-auto flex max-w-7xl h-14 sm:h-16 items-center justify-between px-3.5 sm:px-6">
         
         {/* Left Side: Custom Brand Logo - scalable, responsive, ultra crisp vector */}
         <button 
@@ -172,7 +172,7 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
         </button>
 
         {/* Right Side: Profile Icon next to Premium Three-Line Trigger */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-2.5">
           
           {/* Profile Icon and Dropdown */}
           <div className="relative">
@@ -182,7 +182,7 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
                 setShowProfileDropdown(!showProfileDropdown);
                 setShowDropdown(false);
               }}
-              className="h-9 w-9 rounded-full border border-white/10 hover:border-red-500 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer flex items-center justify-center bg-zinc-950 overflow-hidden"
+              className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-white/15 hover:border-red-500 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer flex items-center justify-center bg-zinc-950 overflow-hidden"
               aria-label="Toggle Profile Dropdown"
             >
               {profile?.profilePic ? (
@@ -193,7 +193,7 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="h-full w-full bg-red-600/10 flex items-center justify-center text-red-500 font-bold text-xs uppercase font-mono">
+                <div className="h-full w-full bg-red-600/10 flex items-center justify-center text-red-500 font-bold text-[10px] uppercase font-mono">
                   {profile?.gamerTag?.slice(0, 2) || profile?.name?.slice(0, 2) || 'G'}
                 </div>
               )}
@@ -209,13 +209,13 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
                 
                 <div 
                   id="header-profile-popover" 
-                  className="absolute right-0 mt-3 w-56 rounded-xl bg-black border border-red-600/30 p-3 shadow-2xl shadow-red-950/20 z-50 space-y-2.5 font-sans text-xs animate-in fade-in slide-in-from-top-2 duration-150"
+                  className="absolute right-0 mt-2.5 w-52 rounded-xl bg-black border border-red-600/30 p-2.5 shadow-2xl shadow-red-950/20 z-50 space-y-2 font-sans text-xs animate-in fade-in slide-in-from-top-2 duration-150"
                 >
-                  <div className="px-1.5 py-1 border-b border-white/[0.06] pb-2">
-                    <p className="font-bold text-white uppercase tracking-wider truncate font-mono text-[10px] text-red-500">
+                  <div className="px-1 py-0.5 border-b border-white/[0.06] pb-1.5">
+                    <p className="font-bold text-white uppercase tracking-wider truncate font-mono text-[9px] text-red-500">
                       {profile?.gamerTag || 'GAMER'}
                     </p>
-                    <p className="text-[10px] text-gray-400 truncate mt-0.5 font-sans">
+                    <p className="text-[9px] text-gray-400 truncate mt-0.5 font-sans">
                       {profile?.email || 'No email synced'}
                     </p>
                   </div>
@@ -247,9 +247,9 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
                         console.error("Sign out failed:", err);
                       }
                     }}
-                    className="w-full text-left p-2 rounded-lg flex items-center justify-center gap-2 bg-red-600/10 border border-red-600/20 text-red-400 hover:bg-red-600/20 transition-all duration-200 cursor-pointer font-bold uppercase tracking-wider text-[10px]"
+                    className="w-full text-left p-1.5 rounded-lg flex items-center justify-center gap-1.5 bg-red-600/10 border border-red-600/20 text-red-400 hover:bg-red-600/20 transition-all duration-200 cursor-pointer font-bold uppercase tracking-wider text-[9px]"
                   >
-                    <LogOut className="h-3.5 w-3.5" />
+                    <LogOut className="h-3 w-3" />
                     <span>Sign Out</span>
                   </button>
                 </div>
@@ -267,15 +267,15 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
                   setShowDropdown(false);
                   setShowProfileDropdown(false);
                 }}
-                className={`p-2 rounded-lg border transition-all duration-200 cursor-pointer flex items-center justify-center relative ${
+                className={`p-1.5 sm:p-2 rounded-lg border transition-all duration-200 cursor-pointer flex items-center justify-center relative ${
                   showNotificationsDropdown 
                     ? 'bg-red-600/10 border-red-500 text-red-500 animate-none' 
                     : 'bg-black border-white/10 text-white hover:text-red-500 hover:border-red-600/40 animate-pulse'
                 }`}
                 aria-label="View Notifications"
               >
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-red-500 rounded-full border border-black" />
+                <Bell className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 bg-red-500 rounded-full border border-black" />
               </button>
 
               {showNotificationsDropdown && (
@@ -288,37 +288,37 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
                   
                   <div 
                     id="header-notifications-popover" 
-                    className="absolute right-[-40px] sm:right-0 mt-3 w-80 rounded-xl bg-black border border-red-600/30 p-4 shadow-2xl shadow-red-950/20 z-50 space-y-3 font-sans text-xs animate-in fade-in slide-in-from-top-2 duration-150"
+                    className="absolute right-[-30px] sm:right-0 mt-2.5 w-72 rounded-xl bg-black border border-red-600/30 p-3 shadow-2xl shadow-red-950/20 z-50 space-y-2.5 font-sans text-xs animate-in fade-in slide-in-from-top-2 duration-150"
                   >
-                    <div className="border-b border-white/[0.06] pb-2 flex items-center justify-between">
-                      <span className="font-mono text-xs uppercase tracking-wider text-red-500 font-bold">SYSTEM BROADCAST</span>
+                    <div className="border-b border-white/[0.06] pb-1.5 flex items-center justify-between">
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-red-500 font-bold">SYSTEM BROADCAST</span>
                       <button 
                         onClick={handleCloseNotifications} 
-                        className="text-gray-500 hover:text-white font-semibold cursor-pointer uppercase text-[9px] font-mono bg-transparent border-0"
+                        className="text-gray-500 hover:text-white font-semibold cursor-pointer uppercase text-[8.5px] font-mono bg-transparent border-0"
                       >
                         Clear All
                       </button>
                     </div>
 
-                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                    <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
                       {notifications.map((notif) => (
                         <div 
                           key={notif.id} 
-                          className="p-3 bg-zinc-950/80 rounded-lg border border-white/[0.04] hover:border-red-600/20 transition-all text-left relative group animate-in fade-in duration-200"
+                          className="p-2.5 bg-zinc-950/80 rounded-lg border border-white/[0.04] hover:border-red-600/20 transition-all text-left relative group animate-in fade-in duration-200"
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="font-bold text-[11px] text-white tracking-wide uppercase font-mono">{notif.title}</span>
-                            <span className="text-[8px] text-gray-500 font-mono">
+                          <div className="flex items-start justify-between gap-1.5">
+                            <span className="font-bold text-[10px] text-white tracking-wide uppercase font-mono">{notif.title}</span>
+                            <span className="text-[7.5px] text-gray-500 font-mono">
                               {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                          <p className="text-[10px] text-gray-300 font-normal leading-relaxed mt-1">{notif.message}</p>
+                          <p className="text-[9.5px] text-gray-300 font-normal leading-relaxed mt-0.5">{notif.message}</p>
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
                               await deleteNotification(notif.id);
                             }}
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-red-500 text-[11px] font-mono bg-transparent border-0 cursor-pointer font-bold"
+                            className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-red-500 text-[10px] font-mono bg-transparent border-0 cursor-pointer font-bold"
                           >
                             ×
                           </button>
@@ -326,7 +326,7 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
                       ))}
                     </div>
 
-                    <div className="text-[9px] text-gray-500 font-mono text-center pt-1 flex items-center justify-center gap-1.5">
+                    <div className="text-[8.5px] text-gray-500 font-mono text-center pt-0.5 flex items-center justify-center gap-1">
                       <span className="h-1 w-1 rounded-full bg-red-500 animate-ping" />
                       <span>Viewing notification logs...</span>
                     </div>
@@ -344,14 +344,14 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
                 setShowDropdown(!showDropdown);
                 setShowProfileDropdown(false);
               }}
-              className={`p-2 rounded-lg border transition-all duration-200 cursor-pointer flex items-center justify-center ${
+              className={`p-1.5 sm:p-2 rounded-lg border transition-all duration-200 cursor-pointer flex items-center justify-center ${
                 showDropdown 
                   ? 'bg-red-600/10 border-red-500 text-red-500' 
                   : 'bg-black border-white/10 text-white hover:text-red-500 hover:border-red-600/40'
               }`}
               aria-label="Toggle Page Menu"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
             </button>
 
             {/* Elegant navigation dropdown popover */}
@@ -365,10 +365,10 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
                 
                 <div 
                   id="header-navigation-popover" 
-                  className="absolute right-0 mt-3 w-72 rounded-xl bg-black border border-red-600/30 p-4 shadow-2xl shadow-red-950/20 z-50 space-y-3 font-sans text-xs animate-in fade-in slide-in-from-top-2 duration-150"
+                  className="absolute right-0 mt-2.5 w-60 sm:w-64 rounded-xl bg-black border border-red-600/30 p-2 sm:p-2.5 shadow-2xl shadow-red-950/20 z-50 space-y-1 font-sans text-xs animate-in fade-in slide-in-from-top-2 duration-150"
                 >
                   {/* Dropdown Options List */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     {tabs.map((tab) => {
                       const isActive = currentTab === tab.id;
                       const IconComp = tab.icon;
@@ -380,16 +380,16 @@ export default function Navbar({ currentTab, setTab }: NavbarProps) {
                             setTab(tab.id);
                             setShowDropdown(false);
                           }}
-                          className={`w-full text-left p-2.5 rounded-lg flex items-start gap-3 transition-all duration-200 cursor-pointer ${
+                          className={`w-full text-left px-2.5 py-1.5 sm:py-2 rounded-lg flex items-start gap-2.5 transition-all duration-200 cursor-pointer ${
                             isActive 
                               ? 'bg-red-600/15 border border-red-600/35 text-red-400' 
                               : 'bg-transparent border border-transparent text-white hover:bg-white/[0.04] hover:text-red-400'
                           }`}
                         >
-                          <IconComp className={`h-4 w-4 mt-0.5 shrink-0 ${isActive ? 'text-red-500' : 'text-gray-400'}`} />
-                          <div>
-                            <div className="font-bold text-xs uppercase tracking-wider">{tab.label}</div>
-                            <div className="text-[10px] text-gray-500 group-hover:text-gray-400 font-normal mt-0.5">{tab.desc}</div>
+                          <IconComp className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${isActive ? 'text-red-500' : 'text-gray-400'}`} />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-[11px] sm:text-xs uppercase tracking-wider leading-tight">{tab.label}</div>
+                            <div className="text-[9px] sm:text-[9.5px] text-gray-400 group-hover:text-gray-300 font-normal leading-tight mt-0.5 truncate">{tab.desc}</div>
                           </div>
                         </button>
                       );

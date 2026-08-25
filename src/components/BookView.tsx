@@ -7,6 +7,37 @@ import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
 import AnalogClockPicker from './AnalogClockPicker';
 
+// Staggered entrance animation variants for station and package list items
+const stationContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.08,
+    },
+  },
+};
+
+const stationItemVariants = {
+  hidden: { 
+    opacity: 0, 
+    y: 14, 
+    scale: 0.97 
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      type: "spring",
+      stiffness: 420,
+      damping: 28,
+      mass: 0.7,
+    },
+  },
+};
+
 interface BookViewProps {
   selectedStationId: string | null;
   setSelectedStationId: (id: string | null) => void;
@@ -340,12 +371,21 @@ export default function BookView({
                 <label className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest font-semibold">
                   1. SELECT SPECIAL GAMING PACKAGE
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <motion.div 
+                  key="packages-list-grid"
+                  variants={stationContainerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                >
                   {GAMING_PACKAGES.map((pkg) => (
-                    <button
+                    <motion.button
                       id={`select-package-${pkg.id}`}
                       key={pkg.id}
                       type="button"
+                      variants={stationItemVariants}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         setPackageId(pkg.id);
                         setSelectedPackageId(pkg.id);
@@ -364,12 +404,17 @@ export default function BookView({
                       {packageId === pkg.id && (
                         <span className="absolute top-4 right-4 bg-[#ef4444] text-[#000000] px-2 py-0.5 text-[8px] font-mono rounded-md font-bold">LOCKED</span>
                       )}
-                    </button>
+                    </motion.button>
                   ))}
-                </div>
+                </motion.div>
 
                 {/* Selected Package Details preview on form */}
-                <div className="p-3.5 bg-black/50 border border-white/[0.04] rounded-xl space-y-2">
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="p-3.5 bg-black/50 border border-white/[0.04] rounded-xl space-y-2"
+                >
                   <span className="block text-[8px] font-mono text-[#ef4444] uppercase tracking-wider font-semibold">
                     PACKAGE DETAILS: {activePackage.name}
                   </span>
@@ -381,7 +426,7 @@ export default function BookView({
                       </span>
                     ))}
                   </div>
-                </div>
+                </motion.div>
               </div>
             ) : (
               /* 1. Station rig select block */
@@ -389,12 +434,21 @@ export default function BookView({
                 <label className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest font-semibold">
                   1. SELECT PREFERRED HARDWARE
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <motion.div 
+                  key="stations-list-grid"
+                  variants={stationContainerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                >
                   {STATIONS.map((st) => (
-                    <button
+                    <motion.button
                       id={`select-station-${st.id}`}
                       key={st.id}
                       type="button"
+                      variants={stationItemVariants}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         setStationId(st.id);
                         setSelectedStationId(st.id);
@@ -412,9 +466,9 @@ export default function BookView({
                       {stationId === st.id && (
                         <span className="absolute top-4 right-4 bg-[#ef4444] text-[#000000] px-2 py-0.5 text-[8px] font-mono rounded-md font-bold">LOCKED</span>
                       )}
-                    </button>
+                    </motion.button>
                   ))}
-                </div>
+                </motion.div>
               </div>
             )}
 
@@ -691,30 +745,6 @@ export default function BookView({
               />
             </div>
 
-            {/* Dynamic Happy Hour Promotion Status Alert */}
-            {bookingType === 'package' ? (
-              <div className="p-3 bg-white/[0.01] border border-white/[0.04] text-gray-400 text-[10px] uppercase font-mono tracking-wider rounded-xl flex items-center gap-2.5">
-                <Sparkles className="h-4 w-4 text-[#ef4444] shrink-0 animate-pulse" />
-                <span>
-                  Gaming Package Special flat rate applied. Package includes premium hardware allocation automatically.
-                </span>
-              </div>
-            ) : appliesHappyHour ? (
-              <div className="p-3 bg-[#ef4444]/5 border border-[#ef4444]/20 text-[#ef4444] text-[11px] rounded-xl flex items-center gap-2.5">
-                <Sparkles className="h-4.5 w-4.5 text-[#ef4444] animate-pulse shrink-0" />
-                <span className="uppercase tracking-wider font-semibold text-[9px]">
-                  <strong>HAPPY HOUR APPLIES (25% OFF APPLIED)</strong>: Launch times starting between 10AM—2PM are priced with automatic promotional sweeps.
-                </span>
-              </div>
-            ) : (
-              <div className="p-3 bg-white/[0.01] border border-white/[0.04] text-gray-500 text-[10px] uppercase font-mono tracking-wider rounded-xl flex items-center gap-2.5">
-                <Clock className="h-4 w-4 text-gray-650 shrink-0" />
-                <span>
-                  Standard rate applied. Start your slot between 10:00 AM – 2:00 PM to claim automatic happy hour credits.
-                </span>
-              </div>
-            )}
-
             <button
               id="submit-book-manifest"
               type="submit"
@@ -729,10 +759,10 @@ export default function BookView({
         <div className="lg:col-span-5 space-y-6">
           
           {/* Dynamic Invoice Estimator */}
-          <div className="bg-white/[0.02] border border-white/[0.05] p-6 rounded-2xl shadow-sm space-y-5 sticky top-28">
-            <h3 className="font-['Arial'] font-bold text-[30px] text-white uppercase tracking-wider flex items-center gap-3 pb-3 border-b border-white/[0.04]">
-              <Receipt className="h-7 w-7 text-[#ef4444]" />
-              <span className="font-['Arial'] font-bold text-[30px] no-underline">Session Statement</span>
+          <div className="bg-white/[0.02] border border-white/[0.05] p-5 rounded-2xl shadow-sm space-y-4 sticky top-28">
+            <h3 className="font-sans font-bold text-sm sm:text-base text-white uppercase tracking-wider flex items-center gap-2 pb-2.5 border-b border-white/[0.06]">
+              <Receipt className="h-4 w-4 text-[#ef4444] shrink-0" />
+              <span className="font-sans font-bold text-sm sm:text-base no-underline">Session Statement</span>
             </h3>
 
             <div className="space-y-3.5 font-mono text-xs">
@@ -795,12 +825,6 @@ export default function BookView({
                   ₹{bookingType === 'package' ? activePackage.price : netTotal}
                 </div>
               </div>
-            </div>
-
-            <div className="p-3.5 bg-[#000000] border border-white/[0.04] rounded-xl space-y-1.5 text-[10px] font-sans text-gray-500 leading-relaxed">
-              <span className="text-gray-400 block font-semibold uppercase tracking-wider text-[9px]">Lobby Check-in Guidelines</span>
-              <p>• Reserved spots will be held for up to 15 minutes past start index ({timeSlot}) before release back to lobby queues.</p>
-              <p>• Cancel your reservations anytime in active logger with zero penalty fee.</p>
             </div>
 
             {/* Clean, High-Contrast Payment Now Button */}

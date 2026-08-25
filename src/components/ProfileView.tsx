@@ -523,15 +523,15 @@ export default function ProfileView() {
   return (
     <div className="pt-2 pb-10 max-w-4xl mx-auto space-y-12">
       {/* Page Header */}
-      <div className="text-center space-y-3">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-600/10 border border-red-600/20 rounded-full text-red-500 text-[10px] font-mono font-bold tracking-[0.16em] uppercase">
-          <Shield className="h-3.5 w-3.5" />
+      <div className="text-center space-y-2">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-600/10 border border-red-600/20 rounded-full text-red-500 text-[9px] font-mono font-bold tracking-[0.14em] uppercase">
+          <Shield className="h-3 w-3" />
           <span>CYBER_IDENTITY_DECK</span>
         </div>
-        <h2 className="text-3xl sm:text-4xl font-sans font-black tracking-tight text-white uppercase">
+        <h2 className="text-xl sm:text-2xl font-sans font-bold tracking-tight text-white uppercase">
           Gamer <span className="text-red-500 font-sans font-bold not-italic no-underline">Profile</span>
         </h2>
-        <p className="text-xs text-gray-400 font-sans max-w-md mx-auto">
+        <p className="text-[11px] sm:text-xs text-gray-400 font-sans max-w-md mx-auto leading-relaxed">
           Customize your e-arena credentials, upload visual identity parameters, and sync your dynamic battle status inside the CAGE.
         </p>
       </div>
@@ -672,12 +672,9 @@ export default function ProfileView() {
 
                 <div className="border-t border-zinc-150 pt-4 mt-2">
                   <div className="bg-gradient-to-br from-amber-50 via-amber-100/40 to-amber-100/80 border border-amber-200 rounded-xl p-3 text-center">
-                    <span className="text-[10px] font-mono text-amber-800 uppercase tracking-[0.10em] block font-black mb-1">
+                    <span className="text-[10px] font-mono text-amber-800 uppercase tracking-[0.10em] block font-black mb-2.5">
                       🎁 Invite your friend get 10 cage coin
                     </span>
-                    <p className="text-[10px] text-amber-750 font-sans max-w-xs mx-auto leading-relaxed font-semibold mb-2.5">
-                      Your friend gets starting 8 coins. You get a random code bonus of 1 to 10 coins!
-                    </p>
                     <div className="flex items-center justify-between bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 max-w-[200px] mx-auto shadow-sm">
                       <span className="text-xs font-mono font-bold text-amber-950 tracking-widest uppercase">
                         {profile?.referralCode}

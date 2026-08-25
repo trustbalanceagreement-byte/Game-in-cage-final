@@ -349,10 +349,9 @@ export default function AdminView() {
         list.push({ id: doc.id, ...doc.data() });
       });
       list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      setEventPosts(list.length > 0 ? list : FALLBACK_EVENTS);
+      setEventPosts(list);
     }, (error) => {
-      console.warn("Live events snapshot error (falling back to presets):", error);
-      setEventPosts(FALLBACK_EVENTS);
+      console.warn("Live events snapshot error:", error);
       handleFirestoreError(error, OperationType.GET, "events");
     });
     return () => unsubscribeEvents();
@@ -436,7 +435,7 @@ export default function AdminView() {
     
     let media = tourneyMediaUrlInput || tourneyFileBase64;
     if (!media && !tourneyFile) {
-      setTourneyErrorMsg("Please choose media: either upload a file or enter a Media URL!");
+      setTourneyErrorMsg("Please choose a tournament photo banner!");
       return;
     }
     
@@ -446,58 +445,25 @@ export default function AdminView() {
     
     try {
       if (tourneyFile) {
-        if (tourneyFile.type.startsWith('video/') || tourneyType === 'video') {
-          if (tourneyFile.size > 2 * 1024 * 1024) {
-            throw new Error("Selected video file exceeds 2MB limit for direct stream upload. Please paste a video link (YouTube / MP4 URL) in the Media URL field instead.");
-          }
-          setTourneySuccessMsg("Uploading video stream...");
-          media = await uploadToServer(tourneyFile, (pct) => {
-            setTourneySuccessMsg(`Uploading media stream... ${pct}%`);
-          });
-        } else {
-          setTourneySuccessMsg("Uploading image banner...");
-          try {
-            media = await uploadToServer(tourneyFile, (pct) => {
-              setTourneySuccessMsg(`Uploading media stream... ${pct}%`);
-            });
-          } catch (uploadErr) {
-            console.warn("Upload to server failed for image, falling back to base64:", uploadErr);
-            if (tourneyFileBase64 && tourneyFileBase64.startsWith('data:image')) {
-              media = tourneyFileBase64;
-            } else {
-              throw uploadErr;
-            }
-          }
-        }
-      } else if (media && media.startsWith('data:')) {
-        setTourneySuccessMsg("Uploading media stream...");
+        setTourneySuccessMsg("Compressing and saving tournament banner...");
         try {
-          media = await uploadToServer(media, (pct) => {
-            setTourneySuccessMsg(`Uploading media stream... ${pct}%`);
-          });
-        } catch (uploadErr) {
-          console.warn("Upload to server failed for base64, keeping fallback:", uploadErr);
-          if (media.startsWith('data:image')) {
-            // Keep base64 image
+          media = await compressImage(tourneyFile, 1280, 800, 0.75);
+        } catch (compErr) {
+          console.warn("Image compression failed, using base64 buffer:", compErr);
+          if (tourneyFileBase64 && tourneyFileBase64.startsWith('data:image')) {
+            media = tourneyFileBase64;
           } else {
-            throw uploadErr;
+            throw compErr;
           }
         }
       }
 
-      const isVideoMedia = tourneyType === 'video' || 
-        (tourneyFile && tourneyFile.type.startsWith('video/')) ||
-        /\.(mp4|webm|mov|mkv|avi|3gp)($|\?)/i.test(media) ||
-        media.includes('youtube.com') || media.includes('youtu.be') || media.includes('vimeo.com');
-
-      const finalType = isVideoMedia ? 'video' : 'photo';
-
-      setTourneySuccessMsg("Publishing tournament stream...");
+      setTourneySuccessMsg("Publishing tournament banner...");
 
       try {
         await addDoc(collection(db, "tournaments"), {
           title: tourneyTitle.trim(),
-          type: finalType,
+          type: 'photo',
           mediaUrl: media,
           caption: tourneyCaption.trim(),
           price: tourneyPrice.trim(),
@@ -523,11 +489,7 @@ export default function AdminView() {
     } catch (error) {
       console.error("Error posting tournament:", error);
       const msg = error instanceof Error ? error.message : String(error);
-      if (msg.includes('413') || msg.toLowerCase().includes('too large')) {
-        setTourneyErrorMsg("The selected file is too large for direct upload. Please paste a video URL (YouTube / MP4 link) in the Media URL field, or choose a photo banner.");
-      } else {
-        setTourneyErrorMsg(msg);
-      }
+      setTourneyErrorMsg(msg || "Failed to publish tournament.");
     } finally {
       setPostingTourney(false);
     }
@@ -913,10 +875,10 @@ export default function AdminView() {
     e.preventDefault();
     setLoginError('');
 
-    const targetEmail = 'dustu0736@gmail.com';
-    const targetPassword = 'Bikram12345';
+    const targetEmail = 'gameincage@gmail.com';
+    const targetPassword = 'Arka@25';
 
-    if (email.trim() === targetEmail && password === targetPassword) {
+    if (email.trim().toLowerCase() === targetEmail.toLowerCase() && password === targetPassword) {
       setIsAdminLoggedIn(true);
       sessionStorage.setItem('gic_admin_authenticated', 'true');
     } else {
@@ -1077,7 +1039,7 @@ export default function AdminView() {
     
     let media = photoPreset || photoUrlInput || photoFileBase64;
     if (!media && !photoFile) {
-      setEventErrorMsg("Please choose an image: either upload a file, select a gaming preset, or enter an Image URL!");
+      setEventErrorMsg("Please choose an image: either upload a photo file, select a gaming preset, or enter an Image URL!");
       return;
     }
     
@@ -1087,28 +1049,20 @@ export default function AdminView() {
     
     try {
       if (photoFile) {
-        setEventSuccessMsg("Uploading photo file to server...");
+        setEventSuccessMsg("Compressing and storing photo...");
         try {
-          media = await uploadToServer(photoFile);
-        } catch (uploadErr) {
-          if (photoFileBase64 && photoFileBase64.length < 800000) {
+          media = await compressImage(photoFile, 1280, 800, 0.75);
+        } catch (compErr) {
+          console.warn("Compression failed, using base64 buffer:", compErr);
+          if (photoFileBase64 && photoFileBase64.startsWith('data:image')) {
             media = photoFileBase64;
           } else {
-            throw uploadErr;
-          }
-        }
-      } else if (media && media.startsWith('data:')) {
-        setEventSuccessMsg("Uploading photo file to server...");
-        try {
-          media = await uploadToServer(media);
-        } catch (uploadErr) {
-          if (media.length < 800000) {
-            // Keep base64
-          } else {
-            throw uploadErr;
+            throw compErr;
           }
         }
       }
+
+      setEventSuccessMsg("Publishing photo bulletin to database...");
 
       try {
         await addDoc(collection(db, "events"), {
@@ -1122,7 +1076,7 @@ export default function AdminView() {
         return;
       }
       
-      setEventSuccessMsg("Photo event posted successfully!");
+      setEventSuccessMsg("✓ Photo event posted successfully!");
       setPhotoCaption('');
       setPhotoUrlInput('');
       setPhotoPreset('');
@@ -1132,79 +1086,9 @@ export default function AdminView() {
     } catch (error) {
       console.error("Error posting photo:", error);
       const msg = error instanceof Error ? error.message : String(error);
-      if (msg.includes('413') || msg.toLowerCase().includes('too large')) {
-        setEventErrorMsg("The selected photo is too large. Please use a compressed photo or URL.");
-      } else {
-        setEventErrorMsg("Failed to upload photo: " + msg);
-      }
+      setEventErrorMsg("Failed to upload photo: " + msg);
     } finally {
       setPostingPhoto(false);
-    }
-  };
-
-  const handlePostVideo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!videoCaption.trim()) {
-      setEventErrorMsg("Please write a video caption first!");
-      return;
-    }
-    
-    let media = videoPreset || videoUrlInput || videoFileBase64;
-    if (!media && !videoFile) {
-      setEventErrorMsg("Please select a video: either upload a file, select a gaming preset loop, or enter a Video URL/Embed!");
-      return;
-    }
-    
-    setPostingVideo(true);
-    setEventErrorMsg('');
-    setEventSuccessMsg('');
-    
-    try {
-      if (videoFile) {
-        setEventSuccessMsg("Uploading video file to server...");
-        media = await uploadToServer(videoFile);
-      } else if (media && media.startsWith('data:')) {
-        setEventSuccessMsg("Uploading video file to server...");
-        try {
-          media = await uploadToServer(media);
-        } catch (uploadErr) {
-          if (media.length < 800000) {
-            // Keep base64
-          } else {
-            throw uploadErr;
-          }
-        }
-      }
-
-      try {
-        await addDoc(collection(db, "events"), {
-          type: "video",
-          mediaUrl: media,
-          caption: videoCaption.trim(),
-          createdAt: Date.now()
-        });
-      } catch (dbErr) {
-        handleFirestoreError(dbErr, OperationType.CREATE, "events");
-        return;
-      }
-      
-      setEventSuccessMsg("Video event posted successfully!");
-      setVideoCaption('');
-      setVideoUrlInput('');
-      setVideoPreset('');
-      setVideoFileBase64('');
-      setVideoFile(null);
-      setTimeout(() => setEventSuccessMsg(''), 4000);
-    } catch (error) {
-      console.error("Error posting video:", error);
-      const msg = error instanceof Error ? error.message : String(error);
-      if (msg.includes('413') || msg.toLowerCase().includes('too large')) {
-        setEventErrorMsg("Video file is too large for upload stream. Please use a shorter video clip or paste a YouTube / Video URL.");
-      } else {
-        setEventErrorMsg("Failed to upload video: " + msg);
-      }
-    } finally {
-      setPostingVideo(false);
     }
   };
 
@@ -1810,8 +1694,25 @@ export default function AdminView() {
                 {displayedUsers.map((u) => {
                   const isUserActive = u.status === 'online' && u.lastActive && (Date.now() - u.lastActive) < 300000;
                   
-                  const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ');
-                  const nameDisplay = fullName ? `${u.name} (${fullName})` : u.name;
+                  const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+                  const gamerTag = (u.gamerTag || '').trim();
+                  const baseName = (u.name || '').trim();
+                  
+                  // Smart non-duplicating display name
+                  let nameDisplay = baseName;
+                  if (gamerTag && baseName && gamerTag.toLowerCase() !== baseName.toLowerCase()) {
+                    nameDisplay = `${baseName} (${gamerTag})`;
+                  } else if (fullName && baseName && fullName.toLowerCase() !== baseName.toLowerCase()) {
+                    nameDisplay = `${baseName} (${fullName})`;
+                  } else if (baseName) {
+                    nameDisplay = baseName;
+                  } else if (fullName) {
+                    nameDisplay = fullName;
+                  } else if (gamerTag) {
+                    nameDisplay = gamerTag;
+                  } else {
+                    nameDisplay = 'Player';
+                  }
 
                   const formatJoined = (created: any) => {
                     if (!created) return 'N/A';
@@ -1831,14 +1732,14 @@ export default function AdminView() {
                   };
 
                   const renderCompactAvatar = (pic: string, gamerName: string) => {
-                    const sizeClasses = "w-[54px] h-[54px] rounded-full object-cover shrink-0";
-                    const borderStyle = "border-[3px] " + (isUserActive ? 'border-emerald-505' : 'border-[#5e4b8a]');
+                    const sizeClasses = "w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0";
+                    const borderStyle = "border-2 " + (isUserActive ? 'border-emerald-500' : 'border-[#5e4b8a]');
                     
                     if (pic && pic.startsWith('PRESET:')) {
                       const presetId = pic.split(':')[1];
                       const preset = PRESET_AVATARS.find(p => p.id === presetId) || PRESET_AVATARS[0];
                       return (
-                        <div className={`${sizeClasses} bg-gradient-to-br ${preset.gradient} ${borderStyle} flex items-center justify-center text-xl shadow-inner`}>
+                        <div className={`${sizeClasses} bg-gradient-to-br ${preset.gradient} ${borderStyle} flex items-center justify-center text-sm shadow-inner`}>
                           <span>{preset.text}</span>
                         </div>
                       );
@@ -1853,8 +1754,8 @@ export default function AdminView() {
                       );
                     } else {
                       return (
-                        <div className={`${sizeClasses} bg-slate-950 ${borderStyle} flex items-center justify-center text-violet-400 font-bold font-mono text-base shadow-inner`}>
-                          {gamerName.charAt(0).toUpperCase()}
+                        <div className={`${sizeClasses} bg-slate-950 ${borderStyle} flex items-center justify-center text-violet-400 font-bold font-mono text-xs shadow-inner`}>
+                          {(gamerName || 'P').charAt(0).toUpperCase()}
                         </div>
                       );
                     }
@@ -1863,29 +1764,29 @@ export default function AdminView() {
                   return (
                     <div 
                       key={u.uid} 
-                      className={`bg-[#13141a]/95 border border-[#22242c] rounded-[18px] p-4 flex flex-col gap-4 transition-all duration-300 hover:border-violet-500/40 relative group ${
-                        isUserActive ? 'ring-1 ring-emerald-505/20' : ''
+                      className={`bg-[#13141a]/95 border border-[#22242c] rounded-xl p-3 sm:p-3.5 flex flex-col gap-2.5 transition-all duration-300 hover:border-violet-500/40 relative group ${
+                        isUserActive ? 'ring-1 ring-emerald-500/20' : ''
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center justify-between gap-3">
                         {/* Avatar & Details content wrapper */}
-                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           <div className="relative shrink-0">
                             {renderCompactAvatar(u.profilePic || '', u.name)}
                             {isUserActive && (
-                              <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border border-[#13141a] ring-1 ring-emerald-400/30 animate-pulse" />
+                              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border border-[#13141a] ring-1 ring-emerald-400/30 animate-pulse" />
                             )}
                           </div>
 
                           <div className="min-w-0 text-left">
-                            <h4 className="text-sm font-bold text-white tracking-tight truncate flex items-center gap-1.5 font-sans">
+                            <h4 className="text-xs sm:text-[13px] font-bold text-white tracking-tight truncate flex items-center gap-1 font-sans">
                               {nameDisplay}
                             </h4>
-                            <div className="flex items-center gap-1.5 text-zinc-400 text-xs mt-1.5 min-w-0">
-                              <Mail className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+                            <div className="flex items-center gap-1 text-zinc-400 text-[10px] sm:text-[11px] mt-0.5 min-w-0">
+                              <Mail className="h-3 w-3 text-zinc-500 shrink-0" />
                               <span className="truncate" title={u.email}>{u.email || 'No email registered'}</span>
                             </div>
-                            <p className="text-[11px] text-zinc-500 mt-1 font-sans">
+                            <p className="text-[9.5px] text-zinc-500 mt-0.5 font-sans">
                               Joined {formatJoined(u.createdAt)}
                             </p>
                           </div>
@@ -1894,42 +1795,42 @@ export default function AdminView() {
                         {/* Action section: Notify or Delete with confirm option */}
                         <div className="flex items-center shrink-0">
                           {pendingDeleteUserId === u.uid ? (
-                            <div className="flex items-center gap-1.5 animate-in slide-in-from-right-2 duration-150">
+                            <div className="flex items-center gap-1 animate-in slide-in-from-right-2 duration-150">
                               <button
                                 onClick={() => handleDeleteUser(u.uid)}
-                                className="px-2 py-1 bg-red-600 hover:bg-red-750 text-white rounded-md text-[10px] font-mono uppercase font-black tracking-wider cursor-pointer border-0"
+                                className="px-2 py-0.5 bg-red-600 hover:bg-red-750 text-white rounded text-[9px] font-mono uppercase font-black tracking-wider cursor-pointer border-0"
                               >
                                 Delete
                               </button>
                               <button
                                 onClick={() => setPendingDeleteUserId(null)}
-                                className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md text-[10px] font-mono uppercase font-black tracking-wider cursor-pointer border-0"
+                                className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[9px] font-mono uppercase font-black tracking-wider cursor-pointer border-0"
                               >
                                 No
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-0.5">
                               {u.uid && !u.uid.startsWith('fb-') && (
                                 <button
                                   onClick={() => setExpandedNotificationUserId(expandedNotificationUserId === u.uid ? null : u.uid)}
-                                  className={`p-2 rounded-xl transition-all cursor-pointer bg-transparent border-0 ${
+                                  className={`p-1.5 rounded-lg transition-all cursor-pointer bg-transparent border-0 ${
                                     expandedNotificationUserId === u.uid 
                                       ? 'text-red-500 bg-red-500/10' 
                                       : 'text-zinc-400 hover:text-red-500 hover:bg-white/[0.04]'
                                   }`}
                                   title="Send Direct Alert"
                                 >
-                                  <BellRing className="h-4.5 w-4.5" />
+                                  <BellRing className="h-3.5 w-3.5" />
                                 </button>
                               )}
 
                               <button
                                 onClick={() => setPendingDeleteUserId(u.uid)}
-                                className="p-2 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all cursor-pointer bg-transparent border-0"
+                                className="p-1.5 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer bg-transparent border-0"
                                 title="Delete User"
                               >
-                                <Trash2 className="h-4.5 w-4.5" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           )}
@@ -2003,30 +1904,30 @@ export default function AdminView() {
             </p>
 
             {/* Sub-tabs Selector */}
-            <div className="mt-5 pt-4 border-t border-white/10 flex flex-wrap gap-2">
+            <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setEventSubTab('bulletins')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
                   eventSubTab === 'bulletins'
-                    ? 'bg-red-600 text-white shadow-[0_0_12px_rgba(220,38,38,0.35)]'
+                    ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(220,38,38,0.35)]'
                     : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10'
                 }`}
               >
-                <Sparkles className="h-3.5 w-3.5" />
+                <Sparkles className="h-3 w-3" />
                 <span>Events &amp; Bulletins ({eventPosts.length})</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setEventSubTab('tournaments')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
                   eventSubTab === 'tournaments'
-                    ? 'bg-red-600 text-white shadow-[0_0_12px_rgba(220,38,38,0.35)]'
+                    ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(220,38,38,0.35)]'
                     : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10'
                 }`}
               >
-                <Trophy className="h-3.5 w-3.5" />
+                <Trophy className="h-3 w-3" />
                 <span>Tournaments &amp; Brackets ({tournaments.length})</span>
               </button>
             </div>
@@ -2048,10 +1949,9 @@ export default function AdminView() {
                 </div>
               )}
 
-              {/* Grid of the two forms */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                
-                {/* Category 1: Photo Form */}
+              {/* SubTab 1: Single Photo & Bulletin Form */}
+              <div className="max-w-2xl mx-auto w-full">
+                {/* Category: Photo Form */}
                 <div className="bg-[#0c0d12] border border-white/[0.04] rounded-[24px] p-6 sm:p-8 space-y-6 flex flex-col justify-between hover:border-[#8b5cf6]/20 transition-all duration-300 shadow-xl">
                   {/* Header */}
                   <div className="flex items-center gap-3">
@@ -2059,14 +1959,14 @@ export default function AdminView() {
                       <ImagePlus className="h-5 w-5" />
                     </div>
                     <h4 className="text-sm font-black text-white uppercase tracking-[0.12em] font-mono">
-                      Photo Upload
+                      Photo &amp; Bulletin Upload
                     </h4>
                   </div>
 
                   <form onSubmit={handlePostPhoto} className="space-y-4">
                     {/* Image Input Options */}
                     <div className="space-y-4">
-                      {/* Option A: File upload (Styled like mockup) */}
+                      {/* Option A: File upload */}
                       <div className="border-2 border-dashed border-[#5b32a1]/50 hover:border-[#8b5cf6] bg-black/40 rounded-[18px] p-8 text-center flex flex-col items-center justify-center cursor-pointer relative group transition-all">
                         <Upload className="h-10 w-10 text-gray-400 group-hover:text-violet-400 group-hover:scale-105 transition-all mb-2" />
                         
@@ -2075,8 +1975,8 @@ export default function AdminView() {
                         </span>
                         
                         {photoFile && (
-                          <span className="block text-[10px] text-emerald-400 font-mono mt-1">
-                            LOCAL FILE BUFFERED (READY TO POST)
+                          <span className="block text-[10px] text-emerald-400 font-mono mt-1 font-bold">
+                            LOCAL FILE BUFFERED • READY TO POST
                           </span>
                         )}
 
@@ -2105,7 +2005,7 @@ export default function AdminView() {
                         />
                       </div>
 
-                      {/* High tech collapsible selectors for presets & URL */}
+                      {/* Selectors for presets & URL */}
                       <div className="flex justify-center gap-3 pt-1">
                         <button
                           type="button"
@@ -2248,219 +2148,6 @@ export default function AdminView() {
                     </button>
                   </form>
                 </div>
-
-                {/* Category 2: Video Form */}
-                <div className="bg-[#0c0d12] border border-white/[0.04] rounded-[24px] p-6 sm:p-8 space-y-6 flex flex-col justify-between hover:border-[#8b5cf6]/20 transition-all duration-300 shadow-xl">
-                  {/* Header */}
-                  <div className="flex items-center gap-3">
-                    <div className="p-1 rounded-lg bg-[#5b32a1]/10 border border-[#5b32a1]/25 text-violet-400">
-                      <Video className="h-5 w-5" />
-                    </div>
-                    <h4 className="text-sm font-black text-white uppercase tracking-[0.12em] font-mono">
-                      Video Upload
-                    </h4>
-                  </div>
-
-                  <form onSubmit={handlePostVideo} className="space-y-4">
-                    {/* Video Input Options */}
-                    <div className="space-y-4">
-                      {/* Option A: File upload (Styled like mockup) */}
-                      <div className="border-2 border-dashed border-[#5b32a1]/50 hover:border-[#8b5cf6] bg-black/40 rounded-[18px] p-8 text-center flex flex-col items-center justify-center cursor-pointer relative group transition-all">
-                        <Upload className="h-10 w-10 text-gray-400 group-hover:text-violet-400 group-hover:scale-105 transition-all mb-2" />
-                        
-                        <span className="text-gray-400 font-sans text-xs sm:text-sm font-semibold tracking-wide">
-                          {videoFile ? "✓ Custom Video Loaded" : "Click to select video"}
-                        </span>
-                        
-                        {videoFile && (
-                          <span className="block text-[10px] text-emerald-400 font-mono mt-1">
-                            LOCAL FILE BUFFERED (READY TO POST)
-                          </span>
-                        )}
-
-                        <input 
-                          type="file" 
-                          accept="video/*" 
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              if (file.size > 2 * 1024 * 1024) {
-                                setEventErrorMsg(`Video exceeds 2MB stream limit (file is ${(file.size / (1024 * 1024)).toFixed(1)}MB). Please paste a video URL or YouTube link below, or select a smaller clip.`);
-                                return;
-                              }
-                              
-                              // Load metadata to check duration
-                              const videoEl = document.createElement('video');
-                              videoEl.preload = 'metadata';
-                              
-                              videoEl.onloadedmetadata = () => {
-                                window.URL.revokeObjectURL(videoEl.src);
-                                const duration = videoEl.duration;
-                                if (duration > 300) {
-                                  setEventErrorMsg("Selected video is too long! The maximum duration allowed is 5 minutes (300 seconds). Your video is " + Math.round(duration) + " seconds.");
-                                  setVideoFile(null);
-                                  setVideoFileBase64('');
-                                  return;
-                                }
-                                
-                                // Success - load file
-                                setVideoFile(file);
-                                setVideoPreset('');
-                                setVideoUrlInput('');
-                                setVideoFileBase64('placeholder_buffered'); // keeps preview/existence flag satisfied
-                                setEventSuccessMsg("Video (" + Math.round(duration) + "s) successfully loaded!");
-                                setEventErrorMsg("");
-                                setTimeout(() => setEventSuccessMsg(''), 4000);
-                              };
-                              
-                              videoEl.onerror = () => {
-                                window.URL.revokeObjectURL(videoEl.src);
-                                setEventErrorMsg("Could not verify video duration. Please make sure it is a valid video file.");
-                              };
-                              
-                              videoEl.src = URL.createObjectURL(file);
-                            }
-                          }}
-                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                        />
-                      </div>
-
-                      {/* High tech collapsible selectors for presets & URL */}
-                      <div className="flex justify-center gap-3 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowVideoUrl(!showVideoUrl);
-                            setShowVideoPresets(false);
-                          }}
-                          className={`text-[9px] font-mono px-2.5 py-1 rounded-lg border transition-all ${
-                            showVideoUrl 
-                              ? 'bg-[#5b32a1]/20 border-[#8b5cf6]/50 text-white' 
-                              : 'bg-[#13141a] hover:bg-[#181922] border-white/5 text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          {videoUrlInput ? '✓ URL Configured' : '+ Enter URL Source'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowVideoPresets(!showVideoPresets);
-                            setShowVideoUrl(false);
-                          }}
-                          className={`text-[9px] font-mono px-2.5 py-1 rounded-lg border transition-all ${
-                            showVideoPresets 
-                              ? 'bg-[#5b32a1]/20 border-[#8b5cf6]/50 text-white' 
-                              : 'bg-[#13141a] hover:bg-[#181922] border-white/5 text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          {videoPreset ? '✓ Preset Selected' : '+ Use Gaming Preset'}
-                        </button>
-                      </div>
-
-                      {/* Option B: Preset Selector Collapsible */}
-                      {showVideoPresets && (
-                        <div className="p-3 bg-[#13141a] rounded-xl border border-white/5 space-y-2 animate-fade-in font-mono">
-                          <span className="block text-[8px] uppercase text-[#8b5cf6] font-bold">Select Gaming Preset Loop</span>
-                          <div className="grid grid-cols-1 gap-1.5">
-                            {[
-                              { name: 'Neon Controller Glow Link', url: 'https://assets.mixkit.co/videos/preview/mixkit-neon-light-from-a-retro-gaming-controller-41902-large.mp4' },
-                              { name: 'Keyboard Typing Setup Loop', url: 'https://assets.mixkit.co/videos/preview/mixkit-hands-of-gamer-playing-on-pc-41913-large.mp4' },
-                              { name: 'VR Sci-fi Gameplay Playback', url: 'https://assets.mixkit.co/videos/preview/mixkit-young-gamer-guy-playing-with-vr-headset-44331-large.mp4' },
-                            ].map((preset) => (
-                              <button
-                                key={preset.name}
-                                type="button"
-                                onClick={() => {
-                                  setVideoPreset(preset.url);
-                                  setVideoUrlInput('');
-                                  setVideoFileBase64('');
-                                  setVideoFile(null);
-                                }}
-                                className={`text-[10px] text-left px-2.5 py-1.5 rounded border transition-colors ${
-                                  videoPreset === preset.url 
-                                    ? 'border-[#8b5cf6] bg-[#5b32a1]/20 text-white font-bold' 
-                                    : 'border-white/10 hover:bg-white/5 text-gray-400'
-                                }`}
-                              >
-                                {preset.name}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Option C: Video URL Collapsible */}
-                      {showVideoUrl && (
-                        <div className="p-3 bg-[#13141a] rounded-xl border border-white/5 space-y-1.5 animate-fade-in">
-                          <span className="block text-[8px] font-mono uppercase text-[#8b5cf6] font-bold">Enter direct Video URL or direct .mp4 link</span>
-                          <input
-                            type="text"
-                            value={videoUrlInput}
-                            onChange={(e) => {
-                              setVideoUrlInput(e.target.value);
-                              setVideoPreset('');
-                              setVideoFileBase64('');
-                              setVideoFile(null);
-                            }}
-                            placeholder="e.g. https://assets.mixkit.co/videos/preview/mixkit-neon-light-from-a-retro-gaming-controller-41902-large.mp4"
-                            className="w-full bg-[#08090d] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-650 focus:outline-none focus:border-[#8b5cf6]"
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Video Preview */}
-                    {(videoPreset || videoUrlInput || videoFileBase64 || videoFile) && (
-                      <div className="bg-[#13141a] border border-white/5 rounded-xl p-2.5 flex items-center justify-between">
-                        <div className="min-w-0 flex-1">
-                          <span className="block text-[8px] font-mono uppercase text-gray-500 font-bold font-mono">VIDEO STREAM LOADED</span>
-                          <span className="text-[10px] text-gray-400 break-all truncate block">
-                            {videoFile || videoFileBase64 ? 'Local Upload Clip' : (videoPreset || videoUrlInput)}
-                          </span>
-                        </div>
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            setVideoFileBase64('');
-                            setVideoFile(null);
-                            setVideoPreset('');
-                            setVideoUrlInput('');
-                          }}
-                          className="p-1 text-gray-400 hover:text-red-500 text-xs font-mono"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Caption Text Box */}
-                    <div className="space-y-1">
-                      <input
-                        type="text"
-                        required
-                        value={videoCaption}
-                        onChange={(e) => setVideoCaption(e.target.value)}
-                        placeholder="Enter video caption..."
-                        className="w-full bg-[#13141a] border border-white/[0.04] focus:border-[#8b5cf6] rounded-xl px-4 py-3.5 text-sm text-white placeholder-gray-500 focus:outline-none transition-all focus:ring-1 focus:ring-[#8b5cf6]/20"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={postingVideo}
-                      className="w-full bg-[#5b32a1] hover:bg-[#6c3fc4] text-white py-3.5 rounded-xl font-bold uppercase text-xs sm:text-sm tracking-widest transition-all duration-300 hover:shadow-[0_0_12px_rgba(139,92,246,0.3)] flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
-                    >
-                      {postingVideo ? (
-                        <>
-                          <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                          <span>Posting...</span>
-                        </>
-                      ) : (
-                        <span>Post Video</span>
-                      )}
-                    </button>
-                  </form>
-                </div>
               </div>
 
               {/* Management List Section */}
@@ -2575,24 +2262,6 @@ export default function AdminView() {
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-mono uppercase tracking-widest text-gray-400 font-bold">
-                        Media Format
-                      </label>
-                      <select 
-                        value={tourneyType}
-                        onChange={(e) => {
-                          setTourneyType(e.target.value as 'photo' | 'video');
-                          setTourneyFileBase64('');
-                          setTourneyMediaUrlInput('');
-                        }}
-                        className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-red-500"
-                      >
-                        <option value="photo">Photo / Banner</option>
-                        <option value="video">Video Clip / URL</option>
-                      </select>
-                    </div>
-
                     {/* Tournament Date and Time (Manually Set) */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
@@ -2622,59 +2291,40 @@ export default function AdminView() {
                     {/* Media Input Options */}
                     <div className="space-y-3">
                       <label className="block text-[10px] font-mono uppercase tracking-widest text-gray-400 font-bold">
-                        Media File or URL *
+                        Tournament Photo Banner *
                       </label>
                       
-                      {/* File Upload component supporting photo and video */}
+                      {/* File Upload component for photo banner */}
                       <div className="border-2 border-dashed border-red-500/20 hover:border-red-500 bg-black/40 rounded-[18px] p-6 text-center flex flex-col items-center justify-center cursor-pointer relative group transition-all">
                         <Upload className="h-8 w-8 text-gray-400 group-hover:text-red-500 group-hover:scale-105 transition-all mb-2" />
                         <span className="text-gray-400 font-sans text-xs font-semibold">
                           {tourneyFile 
-                            ? (tourneyType === 'photo' 
-                                ? `✓ Image Loaded: ${tourneyFile.name}` 
-                                : `✓ Video Loaded: ${tourneyFile.name} (${(tourneyFile.size / (1024 * 1024)).toFixed(1)} MB)`
-                              )
-                            : "Click to select video or photo banner"
+                            ? `✓ Image Loaded: ${tourneyFile.name}` 
+                            : "Click to select tournament photo banner"
                           }
                         </span>
                         {tourneyFile && (
                           <span className="block text-[10px] text-emerald-400 font-mono mt-1 font-bold">
-                            STREAM BUFFER READY • CLICK PUBLISH STREAM TO UPLOAD
+                            PHOTO READY • CLICK PUBLISH TO SAVE
                           </span>
                         )}
                         <input 
                           type="file" 
-                          accept="video/*,image/*" 
+                          accept="image/*" 
                           onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              const isVideoFile = file.type.startsWith('video/') || /\.(mp4|webm|mov|mkv|avi|3gp)($|\?)/i.test(file.name);
-                              if (isVideoFile) {
-                                setTourneyType('video');
-                                if (file.size > 2 * 1024 * 1024) {
-                                  setTourneyErrorMsg(`Video file is ${(file.size / (1024 * 1024)).toFixed(1)}MB, which exceeds the 2MB direct upload limit. Please paste a video URL below (YouTube / MP4 link) or upload a photo banner.`);
-                                  setTourneyFileBase64('');
-                                  setTourneyFile(null);
-                                  return;
-                                }
-                                setTourneyFile(file);
-                                setTourneyFileBase64('placeholder_buffered');
+                              try {
+                                const compressed = await compressImage(file);
+                                setTourneyFileBase64(compressed);
+                                const blob = base64ToBlob(compressed);
+                                const compressedFile = new File([blob], file.name, { type: 'image/jpeg' });
+                                setTourneyFile(compressedFile);
                                 setTourneyMediaUrlInput('');
                                 setTourneyErrorMsg('');
-                              } else {
-                                setTourneyType('photo');
-                                try {
-                                  const compressed = await compressImage(file);
-                                  setTourneyFileBase64(compressed);
-                                  const blob = base64ToBlob(compressed);
-                                  const compressedFile = new File([blob], file.name, { type: 'image/jpeg' });
-                                  setTourneyFile(compressedFile);
-                                  setTourneyMediaUrlInput('');
-                                  setTourneyErrorMsg('');
-                                } catch (err) {
-                                  console.error("Compression failed:", err);
-                                  setTourneyErrorMsg("Failed to process image. Please try another file.");
-                                }
+                              } catch (err) {
+                                console.error("Compression failed:", err);
+                                setTourneyErrorMsg("Failed to process image. Please try another file.");
                               }
                             }
                           }}
@@ -2692,7 +2342,7 @@ export default function AdminView() {
                         onClick={() => setShowTourneyUrl(!showTourneyUrl)}
                         className="text-[10px] font-mono text-red-400 hover:text-red-300 hover:underline block cursor-pointer"
                       >
-                        {showTourneyUrl ? "[ Hide URL Input ]" : "[ Enter Media URL directly ]"}
+                        {showTourneyUrl ? "[ Hide URL Input ]" : "[ Enter Image URL directly ]"}
                       </button>
 
                       {showTourneyUrl && (
@@ -2704,7 +2354,7 @@ export default function AdminView() {
                             setTourneyFileBase64('');
                             setTourneyFile(null);
                           }}
-                          placeholder={tourneyType === 'photo' ? "Enter image URL" : "Enter video URL (YouTube, MP4, etc.)"}
+                          placeholder="Enter tournament banner image URL"
                           className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-red-500"
                         />
                       )}
@@ -2728,7 +2378,7 @@ export default function AdminView() {
                       disabled={postingTourney}
                       className="w-full bg-red-600 hover:bg-red-500 text-white rounded-xl py-3 text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
                     >
-                      {postingTourney ? "Publishing Stream..." : "Publish Tournament"}
+                      {postingTourney ? "Publishing Tournament..." : "Publish Tournament"}
                     </button>
                   </form>
                 </div>
@@ -3166,15 +2816,15 @@ export default function AdminView() {
                 </div>
 
                 {/* Save & Reset Actions */}
-                <div className="flex gap-4 pt-2">
+                <div className="flex gap-2.5 pt-2">
                   <button
                     type="submit"
                     disabled={isUpdatingHero}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3.5 rounded-xl font-bold uppercase text-xs tracking-wider transition-all duration-300 hover:shadow-[0_0_12px_rgba(220,38,38,0.3)] flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg font-bold uppercase text-[11px] tracking-wider transition-all duration-300 hover:shadow-[0_0_10px_rgba(220,38,38,0.3)] flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
                   >
                     {isUpdatingHero ? (
                       <>
-                        <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                        <span className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
                         <span>Publishing Dual Slides...</span>
                       </>
                     ) : (
@@ -3186,7 +2836,7 @@ export default function AdminView() {
                     type="button"
                     onClick={handleResetHeroImage}
                     disabled={isUpdatingHero}
-                    className="px-5 bg-[#13141a] hover:bg-[#181922] border border-white/10 text-gray-300 rounded-xl font-mono text-xs uppercase tracking-wider transition-all cursor-pointer active:scale-[0.98]"
+                    className="px-3 py-2 bg-[#13141a] hover:bg-[#181922] border border-white/10 text-gray-300 rounded-lg font-mono text-[11px] uppercase tracking-wider transition-all cursor-pointer active:scale-[0.98]"
                   >
                     Reset Defaults
                   </button>
