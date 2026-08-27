@@ -4,30 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Game In Cage</title>
-    <!-- OneSignal Web SDK v16 -->
-    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-    <script>
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      OneSignalDeferred.push(async function(OneSignal) {
-        try {
-          // Check if current hostname is localhost or match for custom domains
-          var isLocalOrDev = window.location.hostname === 'localhost' || 
-                             window.location.hostname === '127.0.0.1' || 
-                             window.location.hostname.includes('run.app') ||
-                             window.location.hostname.includes('googleusercontent.com');
-
-          await OneSignal.init({
-            appId: "f2607890-0ba3-47f1-a2bd-282477e73555",
-            allowLocalhostAsEmbeddedBrowsers: true,
-            serviceWorkerParam: { scope: "/" },
-            serviceWorkerPath: "/OneSignalSDKWorker.js",
-          });
-        } catch (err) {
-          // Gracefully suppress domain mismatch warnings in preview/development environments
-          console.info("OneSignal initialization status:", err && err.message ? err.message : err);
-        }
-      });
-    </script>
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "f2607890-0ba3-47f1-a2bd-282477e73555",
+      safari_web_id: "web.onesignal.auto.44228ff7-6812-4ce7-8396-b26a8a4cb6f4",
+      notifyButton: {
+        enable: true,
+      },
+    });
+  });
+</script>
   </head>
   <body>
     <div id="root"></div>
