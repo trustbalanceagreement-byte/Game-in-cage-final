@@ -12,7 +12,8 @@ import {
   Coins,
   Wallet,
   Gift,
-  AlertTriangle
+  AlertTriangle,
+  Smartphone
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PaymentDetails, Booking } from '../types';
@@ -199,6 +200,23 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
     setTimeout(() => {
       window.location.href = universalUpiLink;
     }, 450);
+  };
+
+  // Launch generic UPI intent to show all installed UPI apps on user's phone
+  const handleLaunchGenericUPI = () => {
+    setSelectedApp("Other's UPI");
+    setIsWaitingReturn(true);
+
+    const link = document.createElement('a');
+    link.href = universalUpiLink;
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setTimeout(() => {
+      window.location.href = universalUpiLink;
+    }, 400);
   };
 
   const copyUpiToClipboard = () => {
@@ -954,6 +972,34 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
                   </div>
                   <div className="flex items-center">
                     <div className="h-7 w-7 rounded-lg bg-amber-500/10 group-hover:bg-amber-500 text-amber-400 group-hover:text-black flex items-center justify-center transition-colors">
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </div>
+                  </div>
+                </button>
+
+                {/* 7. OTHER'S UPI (CRED, WhatsApp, Mobikwik, Navi, Jupiter, Slice, All Installed UPI Apps) */}
+                <button
+                  type="button"
+                  onClick={handleLaunchGenericUPI}
+                  className="w-full group flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-black/60 hover:bg-emerald-500/10 border border-white/[0.08] hover:border-emerald-500/50 transition-all cursor-pointer text-left active:scale-[0.99] relative overflow-hidden"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-emerald-950/60 border border-emerald-500/30 flex items-center justify-center shadow-sm p-1 shrink-0 text-emerald-400 group-hover:border-emerald-400/60 transition-colors">
+                      <Smartphone className="h-5 w-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs sm:text-[13px] font-bold text-white font-sans group-hover:text-emerald-400 transition-colors">
+                          Other's UPI
+                        </span>
+                        <span className="text-[7.5px] font-mono font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.2 rounded border border-emerald-500/30 uppercase">
+                          CRED • WHATSAPP • ALL APPS
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="h-7 w-7 rounded-lg bg-white/5 group-hover:bg-emerald-500 text-gray-400 group-hover:text-black flex items-center justify-center transition-colors">
                       <ChevronRight className="h-3.5 w-3.5" />
                     </div>
                   </div>

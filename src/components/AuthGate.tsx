@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { setOneSignalUser, logoutOneSignalUser } from '../lib/onesignal';
 import { Lock, Mail, User, Phone, LogIn, UserPlus, AlertCircle, Eye, EyeOff, X, Gift, Coins, Award } from 'lucide-react';
 
 export interface UserProfile {
@@ -127,6 +128,11 @@ export default function AuthGate({ children }: AuthGateProps) {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
+      if (currentUser?.uid) {
+        setOneSignalUser(currentUser.uid);
+      } else {
+        logoutOneSignalUser();
+      }
     });
     return () => unsubscribe();
   }, []);
