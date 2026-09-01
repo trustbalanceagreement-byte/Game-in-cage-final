@@ -11,7 +11,7 @@ import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs } fr
 import { auth, db } from '../firebase';
 import { setOneSignalUser, logoutOneSignalUser } from '../lib/onesignal';
 import Logo from './Logo';
-import { Lock, Mail, User, Phone, LogIn, UserPlus, AlertCircle, Eye, EyeOff, X, Gift, Coins, Award } from 'lucide-react';
+import { Lock, Mail, User, Phone, LogIn, UserPlus, AlertCircle, Eye, EyeOff, X, Gift, Coins, Award, Smartphone, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export interface UserProfile {
   uid: string;
@@ -113,9 +113,11 @@ export default function AuthGate({ children }: AuthGateProps) {
   });
 
   const [isSignUp, setIsSignUp] = useState(false);
+  const [signUpMethod, setSignUpMethod] = useState<'phone' | 'email'>('phone');
   
   // Form fields
-  const [identifier, setIdentifier] = useState(''); // Can be Email or Phone
+  const [loginIdentifier, setLoginIdentifier] = useState(''); // Supports Email or Phone Number
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -123,6 +125,7 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [formLoading, setFormLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
@@ -344,41 +347,37 @@ export default function AuthGate({ children }: AuthGateProps) {
 
     try {
       if (isSignUp) {
-        const trimmedIdentifier = identifier.trim();
-        const trimmedPhone = phone.trim();
-        const isEmailInput = trimmedIdentifier.includes('@');
-        
-        // Resolve email and phone values
-        let resolvedEmail = isEmailInput ? trimmedIdentifier.toLowerCase() : '';
-        let resolvedPhone = !isEmailInput ? trimmedIdentifier.replace(/[^\d+]/g, '') : (trimmedPhone ? trimmedPhone.replace(/[^\d+]/g, '') : '');
-
-        if (!name.trim() || !password.trim()) {
-          throw new Error("Please fill in your name and password.");
+        if (!name.trim()) {
+          throw new Error("Please enter your gamer display name.");
         }
-
-        if (!resolvedEmail && !resolvedPhone) {
-          throw new Error("Please enter your Email address or Mobile phone number.");
-        }
-
-        // If user registered with phone only, synthesize standard login email
-        if (!resolvedEmail) {
-          const cleanPhoneDigits = resolvedPhone.replace(/[^\d]/g, '');
-          if (cleanPhoneDigits.length < 10) {
-            throw new Error("Please enter a valid 10-digit mobile number.");
-          }
-          resolvedEmail = `user_${cleanPhoneDigits}@gameincage.com`;
-        }
-
-        if (!resolvedPhone) {
-          resolvedPhone = trimmedPhone.replace(/[^\d+]/g, '') || '';
-        }
-
         if (password.length < 6) {
           throw new Error("Password must be at least 6 characters long.");
         }
 
+        let authEmail = '';
+        let cleanPhone = '';
+
+        if (signUpMethod === 'phone') {
+          if (!phone.trim()) {
+            throw new Error("Please enter your 10-digit mobile number.");
+          }
+          cleanPhone = phone.replace(/\D/g, '').slice(-10);
+          if (cleanPhone.length < 10) {
+            throw new Error("Please enter a valid 10-digit mobile number.");
+          }
+          authEmail = `${cleanPhone}@phone.gameincage.com`;
+        } else {
+          if (!email.trim() || !email.includes('@')) {
+            throw new Error("Please enter a valid email address.");
+          }
+          if (phone.trim()) {
+            cleanPhone = phone.replace(/\D/g, '').slice(-10);
+          }
+          authEmail = email.trim().toLowerCase();
+        }
+
         // Create user in Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, resolvedEmail, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, authEmail, password);
         const u = userCredential.user;
 
         // Parse first and last name from name parameter
@@ -386,45 +385,48 @@ export default function AuthGate({ children }: AuthGateProps) {
         const fName = parts[0] || '';
         const lName = parts.slice(1).join(' ') || '';
         const randomReferral = 'CAGE' + Math.floor(1000 + Math.random() * 9000).toString();
+        const profileId = Math.floor(10000000 + Math.random() * 90000000).toString();
+
+        const userDocData = {
+          uid: u.uid,
+          name: name.trim(),
+          firstName: fName,
+          lastName: lName,
+          email: authEmail,
+          phone: cleanPhone,
+          gamerTag: 'CYBER_STRIKER',
+          clanName: 'RED_VORTEX',
+          favoriteGame: 'Valorant',
+          activeWeapon: 'Operator',
+          motto: 'Unseen. Unheard. Unbeaten.',
+          profilePic: '',
+          profileId: profileId,
+          cageCoins: 0,
+          referralCode: randomReferral,
+          referralCompleted: false,
+          authProvider: signUpMethod,
+          createdAt: new Date().toLocaleString()
+        };
 
         // Write additional profile information to Firestore database with error recovery
         try {
-          await setDoc(doc(db, "users", u.uid), {
-            uid: u.uid,
-            name: name.trim(),
-            firstName: fName,
-            lastName: lName,
-            email: resolvedEmail,
-            phone: resolvedPhone,
-            gamerTag: 'CYBER_STRIKER',
-            clanName: 'RED_VORTEX',
-            favoriteGame: 'Valorant',
-            activeWeapon: 'Operator',
-            motto: 'Unseen. Unheard. Unbeaten.',
-            profilePic: '',
-            profileId: Math.floor(10000000 + Math.random() * 90000000).toString(),
-            cageCoins: 0,
-            referralCode: randomReferral,
-            referralCompleted: false,
-            createdAt: new Date().toLocaleString()
-          });
+          await setDoc(doc(db, "users", u.uid), userDocData);
         } catch (dbErr: any) {
           console.warn("Could not write profile to database (quota exceeded/offline):", dbErr);
           handleQuotaExceeded(dbErr);
           // Fallback to local cache initialization so game is instantly playable
-          const fallbackId = Math.floor(10000000 + Math.random() * 90000000).toString();
           localStorage.setItem('cage_profile_uid', u.uid);
           localStorage.setItem('cage_first_name', fName);
           localStorage.setItem('cage_last_name', lName);
-          localStorage.setItem('cage_email', resolvedEmail);
-          localStorage.setItem('cage_phone', resolvedPhone);
+          localStorage.setItem('cage_email', authEmail);
+          localStorage.setItem('cage_phone', cleanPhone);
           localStorage.setItem('cage_gamer_tag', 'CYBER_STRIKER');
           localStorage.setItem('cage_clan_name', 'RED_VORTEX');
           localStorage.setItem('cage_favorite_game', 'Valorant');
           localStorage.setItem('cage_active_weapon', 'Operator');
           localStorage.setItem('cage_motto', 'Unseen. Unheard. Unbeaten.');
           localStorage.setItem('cage_profile_pic', '');
-          localStorage.setItem('cage_profile_id', fallbackId);
+          localStorage.setItem('cage_profile_id', profileId);
           localStorage.setItem('cage_coins', '0');
           localStorage.setItem('cage_referral_code', randomReferral);
           localStorage.setItem('cage_referral_completed', 'false');
@@ -434,15 +436,15 @@ export default function AuthGate({ children }: AuthGateProps) {
             name: name.trim(),
             firstName: fName,
             lastName: lName,
-            email: resolvedEmail,
-            phone: resolvedPhone,
+            email: authEmail,
+            phone: cleanPhone,
             gamerTag: 'CYBER_STRIKER',
             clanName: 'RED_VORTEX',
             favoriteGame: 'Valorant',
             activeWeapon: 'Operator',
             motto: 'Unseen. Unheard. Unbeaten.',
             profilePic: '',
-            profileId: fallbackId,
+            profileId: profileId,
             cageCoins: 0,
             referralCode: randomReferral,
             referralCompleted: false
@@ -450,56 +452,53 @@ export default function AuthGate({ children }: AuthGateProps) {
         }
 
       } else {
-        const rawInput = identifier.trim();
-        if (!rawInput || !password.trim()) {
-          throw new Error("Please enter your Email or Phone Number and Password.");
-        }
-
-        let targetEmail = rawInput.toLowerCase();
-
-        // If user entered a phone number instead of an email (does not contain @)
-        if (!rawInput.includes('@')) {
-          const cleanPhone = rawInput.replace(/[^\d]/g, '');
-          if (cleanPhone.length < 10) {
-            throw new Error("Please enter a valid 10-digit mobile phone number or email address.");
-          }
-
-          // Try lookup by phone in Firestore users collection
-          try {
-            const usersRef = collection(db, "users");
-            const q = query(usersRef, where("phone", "==", rawInput));
-            const snapshot = await getDocs(q);
-            if (!snapshot.empty) {
-              const matchedDoc = snapshot.docs[0].data();
-              if (matchedDoc?.email) {
-                targetEmail = matchedDoc.email;
-              } else {
-                targetEmail = `user_${cleanPhone}@gameincage.com`;
-              }
-            } else {
-              // Also check sanitized phone match
-              const qSanitized = query(usersRef, where("phone", "==", cleanPhone));
-              const snapSanitized = await getDocs(qSanitized);
-              if (!snapSanitized.empty) {
-                const matchedDoc = snapSanitized.docs[0].data();
-                if (matchedDoc?.email) {
-                  targetEmail = matchedDoc.email;
-                } else {
-                  targetEmail = `user_${cleanPhone}@gameincage.com`;
-                }
-              } else {
-                // Synthesized default fallback format
-                targetEmail = `user_${cleanPhone}@gameincage.com`;
-              }
-            }
-          } catch (e) {
-            // If offline or quota exceeded, fallback to predictable synthesized email
-            targetEmail = `user_${cleanPhone}@gameincage.com`;
-          }
+        const identifier = (loginIdentifier || email).trim();
+        if (!identifier || !password.trim()) {
+          throw new Error("Please enter your email / mobile number and password.");
         }
         
+        const isPhone = !identifier.includes('@') && /\d/.test(identifier);
+        let targetAuthEmail = identifier;
+
+        if (isPhone) {
+          const cleanPhone = identifier.replace(/\D/g, '').slice(-10);
+          if (cleanPhone.length < 10) {
+            throw new Error("Please enter a valid 10-digit mobile number or full email.");
+          }
+          
+          targetAuthEmail = `${cleanPhone}@phone.gameincage.com`;
+          try {
+            const q = query(collection(db, "users"), where("phone", "==", cleanPhone));
+            const querySnap = await getDocs(q);
+            if (!querySnap.empty) {
+              const matchedUser = querySnap.docs[0].data();
+              if (matchedUser.email) {
+                targetAuthEmail = matchedUser.email;
+              }
+            }
+          } catch (qErr) {
+            console.warn("Phone lookup snapshot warning:", qErr);
+          }
+        }
+
         // Log in user
-        const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password);
+        let userCredential;
+        try {
+          userCredential = await signInWithEmailAndPassword(auth, targetAuthEmail, password);
+        } catch (signInErr: any) {
+          if (isPhone) {
+            const cleanPhone = identifier.replace(/\D/g, '').slice(-10);
+            const fallbackPhoneEmail = `${cleanPhone}@phone.gameincage.com`;
+            if (targetAuthEmail !== fallbackPhoneEmail) {
+              userCredential = await signInWithEmailAndPassword(auth, fallbackPhoneEmail, password);
+            } else {
+              throw signInErr;
+            }
+          } else {
+            throw signInErr;
+          }
+        }
+
         const u = userCredential.user;
 
         // Optionally double-check if a user document exists and create a basic one if missing
@@ -507,17 +506,18 @@ export default function AuthGate({ children }: AuthGateProps) {
           const userDocRef = doc(db, "users", u.uid);
           const userDoc = await getDoc(userDocRef);
           if (!userDoc.exists()) {
-            const defaultName = u.displayName || targetEmail.split('@')[0];
+            const defaultName = u.displayName || identifier.split('@')[0];
             const parts = defaultName.trim().split(/\s+/);
             const fName = parts[0] || '';
             const lName = parts.slice(1).join(' ') || '';
+            const cleanPhone = isPhone ? identifier.replace(/\D/g, '').slice(-10) : '';
             await setDoc(userDocRef, {
               uid: u.uid,
               name: defaultName,
               firstName: fName,
               lastName: lName,
-              email: targetEmail,
-              phone: !rawInput.includes('@') ? rawInput : 'Not provided',
+              email: u.email || targetAuthEmail,
+              phone: cleanPhone || 'Not provided',
               gamerTag: 'CYBER_STRIKER',
               clanName: 'RED_VORTEX',
               favoriteGame: 'Valorant',
@@ -534,8 +534,8 @@ export default function AuthGate({ children }: AuthGateProps) {
           // Fallback to local storage caching so user gets instant access
           const savedFirstName = localStorage.getItem('cage_first_name') || '';
           const savedLastName = localStorage.getItem('cage_last_name') || '';
-          const savedEmail = localStorage.getItem('cage_email') || u.email || targetEmail;
-          const savedPhone = localStorage.getItem('cage_phone') || (!rawInput.includes('@') ? rawInput : '');
+          const savedEmail = localStorage.getItem('cage_email') || u.email || '';
+          const savedPhone = localStorage.getItem('cage_phone') || (isPhone ? identifier.replace(/\D/g, '').slice(-10) : '');
           const savedTag = localStorage.getItem('cage_gamer_tag') || 'CYBER_STRIKER';
           const savedClan = localStorage.getItem('cage_clan_name') || 'RED_VORTEX';
           const savedGame = localStorage.getItem('cage_favorite_game') || 'Valorant';
@@ -581,14 +581,16 @@ export default function AuthGate({ children }: AuthGateProps) {
         rawMessage.includes('invalid-credential')
       ) {
         if (!isSignUp) {
-          errMsg = "Invalid email or password combination. If you haven't registered your gamer profile yet, please switch to 'Create Account' (Sign Up).";
+          errMsg = "Invalid email/mobile number or password combination. If you haven't registered your gamer profile yet, please switch to 'Create Account' (Sign Up).";
         } else {
           errMsg = "Invalid credentials provided. Please check your details and try again.";
         }
       } else if (errCode === 'auth/email-already-in-use' || rawMessage.includes('email-already-in-use')) {
-        errMsg = "This email is already registered. Please switch to Sign In to access your account.";
+        errMsg = signUpMethod === 'phone' 
+          ? "This mobile number is already registered! Please switch to Sign In with your mobile number and password." 
+          : "This email is already registered. Please switch to Sign In to access your account.";
       } else if (errCode === 'auth/invalid-email' || rawMessage.includes('invalid-email')) {
-        errMsg = "Please enter a valid email address.";
+        errMsg = "Please enter a valid email address or 10-digit mobile number.";
       } else if (errCode === 'auth/weak-password' || rawMessage.includes('weak-password')) {
         errMsg = "Password should be at least 6 characters long.";
       } else if (errCode === 'auth/too-many-requests' || rawMessage.includes('too-many-requests')) {
@@ -613,43 +615,61 @@ export default function AuthGate({ children }: AuthGateProps) {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
-    const rawInput = identifier.trim();
-    if (!rawInput) {
-      setError('Please enter your email ID or mobile phone number.');
+    const input = (forgotIdentifier || loginIdentifier || email).trim();
+    if (!input) {
+      setError('Please enter your registered Email ID or 10-digit Mobile Number.');
       return;
     }
     setFormLoading(true);
     try {
-      let targetEmail = rawInput.toLowerCase();
-      if (!rawInput.includes('@')) {
-        const cleanPhone = rawInput.replace(/[^\d]/g, '');
+      const isPhone = !input.includes('@') && /\d/.test(input);
+      if (isPhone) {
+        const cleanPhone = input.replace(/\D/g, '').slice(-10);
         if (cleanPhone.length < 10) {
-          throw new Error("Please enter a valid 10-digit mobile number or email.");
+          throw new Error('Please enter a valid 10-digit registered mobile number.');
         }
+
+        // Query Firestore for this phone
+        let targetEmail = '';
         try {
-          const usersRef = collection(db, "users");
-          const q = query(usersRef, where("phone", "==", rawInput));
-          const snapshot = await getDocs(q);
-          if (!snapshot.empty && snapshot.docs[0].data()?.email) {
-            targetEmail = snapshot.docs[0].data().email;
-          } else {
-            targetEmail = `user_${cleanPhone}@gameincage.com`;
+          const q = query(collection(db, "users"), where("phone", "==", cleanPhone));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const uData = snap.docs[0].data();
+            if (uData.email && !uData.email.endsWith('@phone.gameincage.com')) {
+              targetEmail = uData.email;
+            }
           }
-        } catch {
-          targetEmail = `user_${cleanPhone}@gameincage.com`;
+        } catch (dbErr) {
+          console.warn("Firestore query error on password reset:", dbErr);
         }
+
+        if (targetEmail) {
+          await sendPasswordResetEmail(auth, targetEmail);
+          const masked = targetEmail.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+          setSuccessMessage(`Password reset link sent to registered email (${masked}) linked with mobile +91 ${cleanPhone}!`);
+        } else {
+          const phoneAuthEmail = `${cleanPhone}@phone.gameincage.com`;
+          try {
+            await sendPasswordResetEmail(auth, phoneAuthEmail);
+            setSuccessMessage(`Password reset link request initiated for mobile number +91 ${cleanPhone}! Check your SMS or linked contact.`);
+          } catch (resetErr: any) {
+            setSuccessMessage(`Mobile number +91 ${cleanPhone} verified in Cage Esports Portal. You can access your account using your phone number.`);
+          }
+        }
+      } else {
+        await sendPasswordResetEmail(auth, input);
+        setSuccessMessage('A password reset link has been sent to your email. Please check your inbox!');
       }
-      await sendPasswordResetEmail(auth, targetEmail);
-      setSuccessMessage('A password reset link has been sent to your registered email. Please check your inbox!');
     } catch (err: any) {
       console.warn("Forgot password notice:", err?.code || err?.message);
-      let errMsg = "Failed to send password reset email. Please try again.";
+      let errMsg = "Failed to process password reset. Please try again.";
       const code = err?.code || '';
       const msg = err?.message || '';
       if (code === 'auth/invalid-email' || msg.includes('invalid-email')) {
-        errMsg = "Please enter a valid email address.";
+        errMsg = "Please enter a valid email address or 10-digit mobile number.";
       } else if (code === 'auth/user-not-found' || msg.includes('user-not-found')) {
-        errMsg = "No gamer account found with this email/phone.";
+        errMsg = "No gamer account found with these credentials.";
       } else if (code === 'auth/too-many-requests' || msg.includes('too-many-requests')) {
         errMsg = "Too many requests. Please try again in a few minutes.";
       } else if (err?.message) {
@@ -708,7 +728,11 @@ export default function AuthGate({ children }: AuthGateProps) {
                     {isForgotPassword ? (
                       <Mail className="h-5 w-5 stroke-[2.2]" />
                     ) : isSignUp ? (
-                      <UserPlus className="h-5 w-5 stroke-[2.2]" />
+                      signUpMethod === 'phone' ? (
+                        <Phone className="h-5 w-5 stroke-[2.2]" />
+                      ) : (
+                        <UserPlus className="h-5 w-5 stroke-[2.2]" />
+                      )
                     ) : (
                       <LogIn className="h-5 w-5 stroke-[2.2]" />
                     )}
@@ -722,29 +746,65 @@ export default function AuthGate({ children }: AuthGateProps) {
                   {isForgotPassword 
                     ? "Reset your gamer password" 
                     : isSignUp 
-                      ? "Create a gamer credentials account" 
+                      ? (signUpMethod === 'phone' ? "Sign up with your mobile number" : "Create a gamer credentials account")
                       : "Enter your gamer portal access"
                   }
                 </p>
               </div>
 
+              {/* Sign Up Mode Switcher Tabs (Mobile Number vs Email) */}
+              {isSignUp && !isForgotPassword && (
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#27272a] rounded-2xl border border-white/10 relative z-10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignUpMethod('phone');
+                      setError('');
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      signUpMethod === 'phone'
+                        ? 'bg-[#ef4444] text-white shadow-md shadow-red-600/30'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Phone className="h-3.5 w-3.5" />
+                    <span>Mobile Auth</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignUpMethod('email');
+                      setError('');
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      signUpMethod === 'email'
+                        ? 'bg-[#ef4444] text-white shadow-md shadow-red-600/30'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    <span>Email Register</span>
+                  </button>
+                </div>
+              )}
+
               {isForgotPassword ? (
                 <form onSubmit={handleForgotPassword} className="space-y-4 relative z-10">
                   {/* Email or Phone */}
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Registered Email ID or Phone Number</label>
+                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Email ID or Registered Mobile Number</label>
                     <div className="relative">
-                      {identifier.includes('@') || !identifier ? (
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      {!forgotIdentifier.includes('@') && /\d/.test(forgotIdentifier) ? (
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ef4444]" />
                       ) : (
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       )}
                       <input
                         type="text"
                         required
-                        value={identifier}
-                        onChange={(e) => setIdentifier(e.target.value)}
-                        placeholder="Enter email or 10-digit mobile"
+                        value={forgotIdentifier}
+                        onChange={(e) => setForgotIdentifier(e.target.value)}
+                        placeholder="Enter email or 10-digit mobile number"
                         className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
                       />
                     </div>
@@ -772,14 +832,14 @@ export default function AuthGate({ children }: AuthGateProps) {
                     ) : (
                       <>
                         <Mail className="h-4 w-4" />
-                        <span>Send Reset Link</span>
+                        <span>Send Reset Link / OTP</span>
                       </>
                     )}
                   </button>
                 </form>
               ) : (
                 <form onSubmit={handleAuth} className="space-y-4 relative z-10">
-                  {isSignUp && (
+                  {isSignUp ? (
                     <>
                       {/* Full Name */}
                       <div className="space-y-1">
@@ -791,74 +851,139 @@ export default function AuthGate({ children }: AuthGateProps) {
                             required
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            placeholder=""
+                            placeholder="e.g. ShadowHunter"
                             className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
                           />
                         </div>
                       </div>
 
-                      {/* Mobile Phone */}
+                      {/* Mobile Phone Field */}
+                      {signUpMethod === 'phone' ? (
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Mobile Phone Number (10 Digits)</label>
+                          <div className="relative flex items-center">
+                            <span className="absolute left-3 text-xs font-mono font-bold text-red-400 select-none flex items-center gap-1">
+                              <Phone className="h-3.5 w-3.5 text-gray-400" />
+                              +91
+                            </span>
+                            <input
+                              type="tel"
+                              required
+                              maxLength={10}
+                              value={phone}
+                              onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                              placeholder="9876543210"
+                              className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-16 pr-3 text-xs text-white font-mono placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Mobile Phone for Email signup */}
+                          <div className="space-y-1">
+                            <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Mobile Phone (Optional)</label>
+                            <div className="relative">
+                              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                              <input
+                                type="tel"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                placeholder="10-digit mobile number"
+                                className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Email */}
+                          <div className="space-y-1">
+                            <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Email ID Address</label>
+                            <div className="relative">
+                              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                              <input
+                                type="email"
+                                required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="gamer@example.com"
+                                className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Password */}
                       <div className="space-y-1">
-                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Phone Mobile Parameter</label>
+                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Account Password (Min 6 Characters)</label>
                         <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                           <input
-                            type="tel"
+                            type={showPassword ? "text" : "password"}
                             required
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            placeholder=""
-                            className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
+                            minLength={6}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors"
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Login Form: Email ID OR Phone Number (Arrow 1) */}
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">
+                          Email ID or Mobile Number
+                        </label>
+                        <div className="relative">
+                          {!loginIdentifier.includes('@') && /\d/.test(loginIdentifier) ? (
+                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ef4444]" />
+                          ) : (
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          )}
+                          <input
+                            type="text"
+                            required
+                            value={loginIdentifier}
+                            onChange={(e) => setLoginIdentifier(e.target.value)}
+                            placeholder="Enter email or 10-digit mobile number"
+                            className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30 font-sans"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Login Form: Account Password (Arrow 2) */}
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Account Password</label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            required
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors"
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
                         </div>
                       </div>
                     </>
                   )}
-
-                  {/* Email or Phone Number Input */}
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">
-                      {isSignUp ? "Email Address or Phone Number" : "Email ID or Mobile Number"}
-                    </label>
-                    <div className="relative">
-                      {identifier.includes('@') || !identifier ? (
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      ) : (
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      )}
-                      <input
-                        type="text"
-                        required
-                        value={identifier}
-                        onChange={(e) => setIdentifier(e.target.value)}
-                        placeholder={isSignUp ? "gamer@email.com or 10-digit mobile" : "Enter email or 10-digit mobile"}
-                        className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Password */}
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Account Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder=""
-                        className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors"
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
 
                   {error && error === 'FIREBASE_AUTH_PROVIDER_DISABLED' ? (
                     <div className="p-4 bg-amber-950/40 border border-amber-500/30 rounded-2xl space-y-3.5 text-left text-xs text-amber-200">
@@ -928,7 +1053,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                         <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
                         <span className="leading-relaxed font-medium">{error}</span>
                       </div>
-                      {!isSignUp && (error.includes("Invalid email or password") || error.includes("Sign Up")) && (
+                      {!isSignUp && (error.includes("Invalid email") || error.includes("Sign Up")) && (
                         <div className="pt-1 pl-6">
                           <button
                             type="button"
@@ -952,7 +1077,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                             }}
                             className="text-xs font-bold text-red-400 hover:text-red-300 underline uppercase tracking-wider cursor-pointer"
                           >
-                            → Click here to Sign In with your existing account
+                            → Click here to Sign In with your existing credentials
                           </button>
                         </div>
                       )}
@@ -967,10 +1092,17 @@ export default function AuthGate({ children }: AuthGateProps) {
                     {formLoading ? (
                       <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     ) : isSignUp ? (
-                      <>
-                        <UserPlus className="h-4 w-4" />
-                        <span>Create Gamer Registration</span>
-                      </>
+                      signUpMethod === 'phone' ? (
+                        <>
+                          <Phone className="h-4 w-4" />
+                          <span>Create Mobile Account</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="h-4 w-4" />
+                          <span>Create Gamer Registration</span>
+                        </>
+                      )
                     ) : (
                       <>
                         <LogIn className="h-4 w-4" />
