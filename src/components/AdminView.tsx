@@ -1257,14 +1257,12 @@ export default function AdminView() {
                   {activeTab === 'bookings' && <Calendar className="h-4 w-4" />}
                   {activeTab === 'users' && <Users className="h-4 w-4" />}
                   {activeTab === 'events' && <Megaphone className="h-4 w-4" />}
-                  {activeTab === 'hero' && <ImagePlus className="h-4 w-4" />}
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-gray-900 tracking-wide truncate">
                     {activeTab === 'bookings' && `View Bookings (${bookings.length})`}
                     {activeTab === 'users' && `Registered Users (${registeredUsers.length})`}
                     {activeTab === 'events' && `Event Management (${eventPosts.length + tournaments.length})`}
-                    {activeTab === 'hero' && 'Customize Hero Image'}
                   </p>
                   <p className="text-[10px] text-gray-400 font-medium">Click to switch section</p>
                 </div>
@@ -1303,13 +1301,6 @@ export default function AdminView() {
                     count: eventPosts.length + tournaments.length,
                     icon: Megaphone,
                     desc: 'Bulletins, highlights & tournaments'
-                  },
-                  {
-                    id: 'hero' as const,
-                    label: 'Customize Hero Image',
-                    count: null,
-                    icon: ImagePlus,
-                    desc: 'Update homepage banner slides'
                   }
                 ].map((item) => {
                   const isSelected = activeTab === item.id;
