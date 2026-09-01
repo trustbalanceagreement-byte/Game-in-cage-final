@@ -10,6 +10,7 @@ import {
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { setOneSignalUser, logoutOneSignalUser } from '../lib/onesignal';
+import Logo from './Logo';
 import { Lock, Mail, User, Phone, LogIn, UserPlus, AlertCircle, Eye, EyeOff, X, Gift, Coins, Award } from 'lucide-react';
 
 export interface UserProfile {
@@ -114,7 +115,7 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   
   // Form fields
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(''); // Can be Email or Phone
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -343,15 +344,41 @@ export default function AuthGate({ children }: AuthGateProps) {
 
     try {
       if (isSignUp) {
-        if (!name.trim() || !phone.trim() || !email.trim() || !password.trim()) {
-          throw new Error("Please fill in all requested fields.");
+        const trimmedIdentifier = identifier.trim();
+        const trimmedPhone = phone.trim();
+        const isEmailInput = trimmedIdentifier.includes('@');
+        
+        // Resolve email and phone values
+        let resolvedEmail = isEmailInput ? trimmedIdentifier.toLowerCase() : '';
+        let resolvedPhone = !isEmailInput ? trimmedIdentifier.replace(/[^\d+]/g, '') : (trimmedPhone ? trimmedPhone.replace(/[^\d+]/g, '') : '');
+
+        if (!name.trim() || !password.trim()) {
+          throw new Error("Please fill in your name and password.");
         }
+
+        if (!resolvedEmail && !resolvedPhone) {
+          throw new Error("Please enter your Email address or Mobile phone number.");
+        }
+
+        // If user registered with phone only, synthesize standard login email
+        if (!resolvedEmail) {
+          const cleanPhoneDigits = resolvedPhone.replace(/[^\d]/g, '');
+          if (cleanPhoneDigits.length < 10) {
+            throw new Error("Please enter a valid 10-digit mobile number.");
+          }
+          resolvedEmail = `user_${cleanPhoneDigits}@gameincage.com`;
+        }
+
+        if (!resolvedPhone) {
+          resolvedPhone = trimmedPhone.replace(/[^\d+]/g, '') || '';
+        }
+
         if (password.length < 6) {
           throw new Error("Password must be at least 6 characters long.");
         }
 
         // Create user in Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, resolvedEmail, password);
         const u = userCredential.user;
 
         // Parse first and last name from name parameter
@@ -367,8 +394,8 @@ export default function AuthGate({ children }: AuthGateProps) {
             name: name.trim(),
             firstName: fName,
             lastName: lName,
-            email: email.trim(),
-            phone: phone.trim(),
+            email: resolvedEmail,
+            phone: resolvedPhone,
             gamerTag: 'CYBER_STRIKER',
             clanName: 'RED_VORTEX',
             favoriteGame: 'Valorant',
@@ -389,8 +416,8 @@ export default function AuthGate({ children }: AuthGateProps) {
           localStorage.setItem('cage_profile_uid', u.uid);
           localStorage.setItem('cage_first_name', fName);
           localStorage.setItem('cage_last_name', lName);
-          localStorage.setItem('cage_email', email.trim());
-          localStorage.setItem('cage_phone', phone.trim());
+          localStorage.setItem('cage_email', resolvedEmail);
+          localStorage.setItem('cage_phone', resolvedPhone);
           localStorage.setItem('cage_gamer_tag', 'CYBER_STRIKER');
           localStorage.setItem('cage_clan_name', 'RED_VORTEX');
           localStorage.setItem('cage_favorite_game', 'Valorant');
@@ -407,8 +434,8 @@ export default function AuthGate({ children }: AuthGateProps) {
             name: name.trim(),
             firstName: fName,
             lastName: lName,
-            email: email.trim(),
-            phone: phone.trim(),
+            email: resolvedEmail,
+            phone: resolvedPhone,
             gamerTag: 'CYBER_STRIKER',
             clanName: 'RED_VORTEX',
             favoriteGame: 'Valorant',
@@ -423,12 +450,56 @@ export default function AuthGate({ children }: AuthGateProps) {
         }
 
       } else {
-        if (!email.trim() || !password.trim()) {
-          throw new Error("Please enter your email and password.");
+        const rawInput = identifier.trim();
+        if (!rawInput || !password.trim()) {
+          throw new Error("Please enter your Email or Phone Number and Password.");
+        }
+
+        let targetEmail = rawInput.toLowerCase();
+
+        // If user entered a phone number instead of an email (does not contain @)
+        if (!rawInput.includes('@')) {
+          const cleanPhone = rawInput.replace(/[^\d]/g, '');
+          if (cleanPhone.length < 10) {
+            throw new Error("Please enter a valid 10-digit mobile phone number or email address.");
+          }
+
+          // Try lookup by phone in Firestore users collection
+          try {
+            const usersRef = collection(db, "users");
+            const q = query(usersRef, where("phone", "==", rawInput));
+            const snapshot = await getDocs(q);
+            if (!snapshot.empty) {
+              const matchedDoc = snapshot.docs[0].data();
+              if (matchedDoc?.email) {
+                targetEmail = matchedDoc.email;
+              } else {
+                targetEmail = `user_${cleanPhone}@gameincage.com`;
+              }
+            } else {
+              // Also check sanitized phone match
+              const qSanitized = query(usersRef, where("phone", "==", cleanPhone));
+              const snapSanitized = await getDocs(qSanitized);
+              if (!snapSanitized.empty) {
+                const matchedDoc = snapSanitized.docs[0].data();
+                if (matchedDoc?.email) {
+                  targetEmail = matchedDoc.email;
+                } else {
+                  targetEmail = `user_${cleanPhone}@gameincage.com`;
+                }
+              } else {
+                // Synthesized default fallback format
+                targetEmail = `user_${cleanPhone}@gameincage.com`;
+              }
+            }
+          } catch (e) {
+            // If offline or quota exceeded, fallback to predictable synthesized email
+            targetEmail = `user_${cleanPhone}@gameincage.com`;
+          }
         }
         
         // Log in user
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password);
         const u = userCredential.user;
 
         // Optionally double-check if a user document exists and create a basic one if missing
@@ -436,7 +507,7 @@ export default function AuthGate({ children }: AuthGateProps) {
           const userDocRef = doc(db, "users", u.uid);
           const userDoc = await getDoc(userDocRef);
           if (!userDoc.exists()) {
-            const defaultName = u.displayName || email.split('@')[0];
+            const defaultName = u.displayName || targetEmail.split('@')[0];
             const parts = defaultName.trim().split(/\s+/);
             const fName = parts[0] || '';
             const lName = parts.slice(1).join(' ') || '';
@@ -445,8 +516,8 @@ export default function AuthGate({ children }: AuthGateProps) {
               name: defaultName,
               firstName: fName,
               lastName: lName,
-              email: email.trim(),
-              phone: 'Not provided',
+              email: targetEmail,
+              phone: !rawInput.includes('@') ? rawInput : 'Not provided',
               gamerTag: 'CYBER_STRIKER',
               clanName: 'RED_VORTEX',
               favoriteGame: 'Valorant',
@@ -463,8 +534,8 @@ export default function AuthGate({ children }: AuthGateProps) {
           // Fallback to local storage caching so user gets instant access
           const savedFirstName = localStorage.getItem('cage_first_name') || '';
           const savedLastName = localStorage.getItem('cage_last_name') || '';
-          const savedEmail = localStorage.getItem('cage_email') || u.email || '';
-          const savedPhone = localStorage.getItem('cage_phone') || '';
+          const savedEmail = localStorage.getItem('cage_email') || u.email || targetEmail;
+          const savedPhone = localStorage.getItem('cage_phone') || (!rawInput.includes('@') ? rawInput : '');
           const savedTag = localStorage.getItem('cage_gamer_tag') || 'CYBER_STRIKER';
           const savedClan = localStorage.getItem('cage_clan_name') || 'RED_VORTEX';
           const savedGame = localStorage.getItem('cage_favorite_game') || 'Valorant';
@@ -542,14 +613,34 @@ export default function AuthGate({ children }: AuthGateProps) {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
-    if (!email.trim()) {
-      setError('Please enter your email ID address first.');
+    const rawInput = identifier.trim();
+    if (!rawInput) {
+      setError('Please enter your email ID or mobile phone number.');
       return;
     }
     setFormLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim());
-      setSuccessMessage('A password reset link has been sent to your email. Please check your inbox!');
+      let targetEmail = rawInput.toLowerCase();
+      if (!rawInput.includes('@')) {
+        const cleanPhone = rawInput.replace(/[^\d]/g, '');
+        if (cleanPhone.length < 10) {
+          throw new Error("Please enter a valid 10-digit mobile number or email.");
+        }
+        try {
+          const usersRef = collection(db, "users");
+          const q = query(usersRef, where("phone", "==", rawInput));
+          const snapshot = await getDocs(q);
+          if (!snapshot.empty && snapshot.docs[0].data()?.email) {
+            targetEmail = snapshot.docs[0].data().email;
+          } else {
+            targetEmail = `user_${cleanPhone}@gameincage.com`;
+          }
+        } catch {
+          targetEmail = `user_${cleanPhone}@gameincage.com`;
+        }
+      }
+      await sendPasswordResetEmail(auth, targetEmail);
+      setSuccessMessage('A password reset link has been sent to your registered email. Please check your inbox!');
     } catch (err: any) {
       console.warn("Forgot password notice:", err?.code || err?.message);
       let errMsg = "Failed to send password reset email. Please try again.";
@@ -558,9 +649,11 @@ export default function AuthGate({ children }: AuthGateProps) {
       if (code === 'auth/invalid-email' || msg.includes('invalid-email')) {
         errMsg = "Please enter a valid email address.";
       } else if (code === 'auth/user-not-found' || msg.includes('user-not-found')) {
-        errMsg = "No gamer account found with this email.";
+        errMsg = "No gamer account found with this email/phone.";
       } else if (code === 'auth/too-many-requests' || msg.includes('too-many-requests')) {
         errMsg = "Too many requests. Please try again in a few minutes.";
+      } else if (err?.message) {
+        errMsg = err.message;
       }
       setError(errMsg);
     } finally {
@@ -602,26 +695,30 @@ export default function AuthGate({ children }: AuthGateProps) {
 
         {/* If not authenticated, overlay the login page modal directly over the blurred home page */}
         {!user && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-black/60 backdrop-blur-[3px] overflow-y-auto">
-            <div className="w-full max-w-md bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/10 space-y-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-black/80 backdrop-blur-md overflow-y-auto">
+            <div className="w-full max-w-md bg-[#18181b] border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/80 space-y-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
               
               {/* Top visual elements */}
               <div className="absolute top-0 inset-x-0 h-1 bg-[#ef4444]" />
               
               <div className="text-center space-y-2 relative z-10">
-                <div className="h-12 w-12 bg-red-50 border border-red-100 rounded-2xl mx-auto flex items-center justify-center text-[#ef4444] mb-2">
-                  {isForgotPassword ? (
-                    <Mail className="h-5 w-5 animate-bounce" />
-                  ) : isSignUp ? (
-                    <UserPlus className="h-5 w-5 animate-pulse" />
-                  ) : (
-                    <LogIn className="h-5 w-5" />
-                  )}
+                {/* Dynamic Vector Icon Badge above the Logo */}
+                <div className="flex justify-center pb-0.5">
+                  <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-[#ef4444] shadow-inner transition-all duration-200">
+                    {isForgotPassword ? (
+                      <Mail className="h-5 w-5 stroke-[2.2]" />
+                    ) : isSignUp ? (
+                      <UserPlus className="h-5 w-5 stroke-[2.2]" />
+                    ) : (
+                      <LogIn className="h-5 w-5 stroke-[2.2]" />
+                    )}
+                  </div>
                 </div>
-                <h1 className="text-xl font-sans font-black tracking-tight text-gray-950 uppercase">
-                  ESPORTS ARENA
-                </h1>
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-mono">
+
+                <div className="flex items-center justify-center pt-0.5 pb-1">
+                  <Logo className="h-9 sm:h-11 w-auto max-w-[190px] sm:max-w-[220px] object-contain drop-shadow-md select-none" />
+                </div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-mono">
                   {isForgotPassword 
                     ? "Reset your gamer password" 
                     : isSignUp 
@@ -633,30 +730,34 @@ export default function AuthGate({ children }: AuthGateProps) {
 
               {isForgotPassword ? (
                 <form onSubmit={handleForgotPassword} className="space-y-4 relative z-10">
-                  {/* Email */}
+                  {/* Email or Phone */}
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500">Email ID Address</label>
+                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Registered Email ID or Phone Number</label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      {identifier.includes('@') || !identifier ? (
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      ) : (
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      )}
                       <input
-                        type="email"
+                        type="text"
                         required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder=""
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs text-black placeholder-gray-400 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        placeholder="Enter email or 10-digit mobile"
+                        className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
                       />
                     </div>
                   </div>
 
                   {successMessage ? (
-                    <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-600 text-xs flex items-start gap-2">
-                      <Award className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
+                    <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs flex items-start gap-2">
+                      <Award className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
                       <span>{successMessage}</span>
                     </div>
                   ) : error ? (
-                    <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs flex items-start gap-2">
-                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
+                    <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
                       <span>{error}</span>
                     </div>
                   ) : null}
@@ -664,7 +765,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                   <button
                     type="submit"
                     disabled={formLoading}
-                    className="w-full py-3 bg-[#ef4444] hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="w-full py-3 bg-[#ef4444] hover:bg-red-600 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-lg shadow-red-600/20"
                   >
                     {formLoading ? (
                       <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -682,7 +783,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                     <>
                       {/* Full Name */}
                       <div className="space-y-1">
-                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500">Gamer Name / Display Name</label>
+                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Gamer Name / Display Name</label>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                           <input
@@ -691,14 +792,14 @@ export default function AuthGate({ children }: AuthGateProps) {
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder=""
-                            className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs text-black placeholder-gray-400 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
+                            className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
                           />
                         </div>
                       </div>
 
                       {/* Mobile Phone */}
                       <div className="space-y-1">
-                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500">Phone Mobile Parameter</label>
+                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Phone Mobile Parameter</label>
                         <div className="relative">
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                           <input
@@ -707,32 +808,38 @@ export default function AuthGate({ children }: AuthGateProps) {
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
                             placeholder=""
-                            className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs text-black placeholder-gray-400 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
+                            className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
                           />
                         </div>
                       </div>
                     </>
                   )}
 
-                  {/* Email */}
+                  {/* Email or Phone Number Input */}
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500">Email ID Address</label>
+                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">
+                      {isSignUp ? "Email Address or Phone Number" : "Email ID or Mobile Number"}
+                    </label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      {identifier.includes('@') || !identifier ? (
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      ) : (
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      )}
                       <input
-                        type="email"
+                        type="text"
                         required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder=""
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs text-black placeholder-gray-400 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        placeholder={isSignUp ? "gamer@email.com or 10-digit mobile" : "Enter email or 10-digit mobile"}
+                        className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
                       />
                     </div>
                   </div>
 
                   {/* Password */}
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500">Account Password</label>
+                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-gray-400">Account Password</label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <input
@@ -741,12 +848,12 @@ export default function AuthGate({ children }: AuthGateProps) {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder=""
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-10 text-xs text-black placeholder-gray-400 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
+                        className="w-full bg-[#27272a] border border-white/10 rounded-xl py-2.5 pl-10 pr-10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/30"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors"
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -754,23 +861,23 @@ export default function AuthGate({ children }: AuthGateProps) {
                   </div>
 
                   {error && error === 'FIREBASE_AUTH_PROVIDER_DISABLED' ? (
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3.5 text-left text-xs text-amber-900">
+                    <div className="p-4 bg-amber-950/40 border border-amber-500/30 rounded-2xl space-y-3.5 text-left text-xs text-amber-200">
                       <div className="flex items-start gap-2.5">
-                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600 animate-pulse" />
+                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-amber-400 animate-pulse" />
                         <div className="space-y-1">
-                          <h4 className="font-bold text-amber-950 uppercase tracking-wide text-[11px]">
+                          <h4 className="font-bold text-amber-300 uppercase tracking-wide text-[11px]">
                             Firebase Authentication Setup Required
                           </h4>
-                          <p className="text-[11px] leading-relaxed text-amber-800">
+                          <p className="text-[11px] leading-relaxed text-amber-200/90">
                             Your Firebase project is set up, but the <strong>Email/Password Sign-In Method</strong> is currently disabled in your Google Cloud / Firebase parameters.
                           </p>
                         </div>
                       </div>
 
-                      <div className="bg-white/80 border border-amber-200/50 p-3 rounded-xl space-y-2 text-[11.5px] leading-relaxed text-amber-955">
-                        <p className="font-semibold uppercase tracking-wider text-[10px] text-amber-800">How to activate (Step-by-step):</p>
-                        <ol className="list-decimal list-inside space-y-1 text-gray-700">
-                          <li>Go to your <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-red-600 underline font-bold hover:text-red-700">Firebase Console</a>.</li>
+                      <div className="bg-black/40 border border-amber-500/20 p-3 rounded-xl space-y-2 text-[11.5px] leading-relaxed text-amber-100">
+                        <p className="font-semibold uppercase tracking-wider text-[10px] text-amber-400">How to activate (Step-by-step):</p>
+                        <ol className="list-decimal list-inside space-y-1 text-gray-300">
+                          <li>Go to your <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-red-400 underline font-bold hover:text-red-300">Firebase Console</a>.</li>
                           <li>In the sidebar under <strong>Build</strong>, click <strong>Authentication</strong>.</li>
                           <li>Click on the <strong>Sign-in method</strong> tab on the tab-bar.</li>
                           <li>Select <strong>Email/Password</strong>, slide the toggle to <strong>Enable</strong>, and click <strong>Save</strong>.</li>
@@ -816,9 +923,9 @@ export default function AuthGate({ children }: AuthGateProps) {
                       </div>
                     </div>
                   ) : error ? (
-                    <div className="p-3.5 bg-red-50 border border-red-200/80 rounded-2xl text-red-600 text-xs space-y-2">
+                    <div className="p-3.5 bg-red-950/40 border border-red-500/30 rounded-2xl text-red-400 text-xs space-y-2">
                       <div className="flex items-start gap-2">
-                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
                         <span className="leading-relaxed font-medium">{error}</span>
                       </div>
                       {!isSignUp && (error.includes("Invalid email or password") || error.includes("Sign Up")) && (
@@ -829,7 +936,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                               setIsSignUp(true);
                               setError('');
                             }}
-                            className="text-xs font-bold text-red-700 hover:text-red-800 underline uppercase tracking-wider cursor-pointer"
+                            className="text-xs font-bold text-red-400 hover:text-red-300 underline uppercase tracking-wider cursor-pointer"
                           >
                             → Click here to Create New Account (Sign Up)
                           </button>
@@ -843,7 +950,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                               setIsSignUp(false);
                               setError('');
                             }}
-                            className="text-xs font-bold text-red-700 hover:text-red-800 underline uppercase tracking-wider cursor-pointer"
+                            className="text-xs font-bold text-red-400 hover:text-red-300 underline uppercase tracking-wider cursor-pointer"
                           >
                             → Click here to Sign In with your existing account
                           </button>
@@ -855,7 +962,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                   <button
                     type="submit"
                     disabled={formLoading}
-                    className="w-full py-3 bg-[#ef4444] hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="w-full py-3 bg-[#ef4444] hover:bg-red-600 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-lg shadow-red-600/20"
                   >
                     {formLoading ? (
                       <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -874,7 +981,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                 </form>
               )}
 
-              <div className="pt-4 border-t border-gray-100 text-center text-xs relative z-10">
+              <div className="pt-4 border-t border-white/10 text-center text-xs relative z-10">
                 {isForgotPassword ? (
                   <button
                     type="button"
@@ -883,7 +990,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                       setError('');
                       setSuccessMessage('');
                     }}
-                    className="text-gray-500 hover:text-red-600 font-semibold cursor-pointer"
+                    className="text-gray-400 hover:text-red-400 font-semibold cursor-pointer"
                   >
                     Back to gamer login portal
                   </button>
@@ -895,7 +1002,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                         setIsSignUp(!isSignUp);
                         setError('');
                       }}
-                      className="text-gray-500 hover:text-red-600 font-semibold focus:outline-none cursor-pointer"
+                      className="text-gray-400 hover:text-red-400 font-semibold focus:outline-none cursor-pointer"
                     >
                       {isSignUp ? "Already registered? Access portal account here" : "Don't have gamer credentials? Sign Up free"}
                     </button>
@@ -907,7 +1014,7 @@ export default function AuthGate({ children }: AuthGateProps) {
                           setError('');
                           setSuccessMessage('');
                         }}
-                        className="text-gray-400 hover:text-red-500 font-medium text-[11px] transition-colors focus:outline-none cursor-pointer"
+                        className="text-gray-500 hover:text-red-400 font-medium text-[11px] transition-colors focus:outline-none cursor-pointer"
                       >
                         Forgot your password?
                       </button>

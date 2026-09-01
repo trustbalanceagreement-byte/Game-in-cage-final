@@ -4,19 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Game In Cage</title>
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({
-      appId: "f2607890-0ba3-47f1-a2bd-282477e73555",
-      safari_web_id: "web.onesignal.auto.44228ff7-6812-4ce7-8396-b26a8a4cb6f4",
-      notifyButton: {
-        enable: true,
-      },
-    });
-  });
-</script>
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        try {
+          await OneSignal.init({
+            appId: "f2607890-0ba3-47f1-a2bd-282477e73555",
+            safari_web_id: "web.onesignal.auto.44228ff7-6812-4ce7-8396-b26a8a4cb6f4",
+            allowLocalhostAsEmbeddedBrowsers: true,
+            notifyButton: {
+              enable: true,
+            },
+          });
+        } catch (err) {
+          console.info("OneSignal init status:", err && err.message ? err.message : err);
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

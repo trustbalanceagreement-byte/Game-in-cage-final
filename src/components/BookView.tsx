@@ -821,7 +821,7 @@ export default function BookView({
                   <span className="block text-[9px] text-gray-505 font-semibold text-gray-550 uppercase leading-none">Net Payable On-Spot:</span>
                   <span className="text-[8px] text-gray-500 font-mono mt-1 block">At Kalyani Counter desk</span>
                 </div>
-                <div className="text-3xl font-display font-medium text-white italic">
+                <div className="text-2xl sm:text-3xl font-sans font-bold text-white tracking-tight">
                   ₹{bookingType === 'package' ? activePackage.price : netTotal}
                 </div>
               </div>
@@ -926,7 +926,7 @@ export default function BookView({
 
               <div className="border-t border-white/[0.04] pt-3 flex justify-between items-end">
                 <span className="font-semibold uppercase text-[8px] text-gray-500">PAYABLE ON SLOT ENTER:</span>
-                <span className="text-xl font-display font-medium text-[#ef4444] italic">₹{bookingSuccess.totalCost}</span>
+                <span className="text-xl font-sans font-bold text-[#ef4444] tracking-tight">₹{bookingSuccess.totalCost}</span>
               </div>
             </div>
 

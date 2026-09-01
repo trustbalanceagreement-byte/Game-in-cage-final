@@ -786,7 +786,7 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
                   </span>
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider mt-0.5 font-sans">
-                  Select Payment App / Wallet
+                  Select Payment App / Cage Coin
                 </h3>
               </div>
 
