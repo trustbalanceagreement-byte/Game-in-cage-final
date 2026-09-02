@@ -35,5 +35,10 @@ service cloud.firestore {
     match /settings/{docId} {
       allow read, write: if true;
     }
+
+    // Bill number submission & Cage coins verification path
+    match /bill_submissions/{billId} {
+      allow read, write: if true;
+    }
   }
 }

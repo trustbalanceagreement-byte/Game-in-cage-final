@@ -5,7 +5,6 @@ import { CAFE_INFO, STATIONS, GAMING_PACKAGES } from '../data';
 import { Booking, StationConfig, GamingPackage, PaymentDetails } from '../types';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
-import AnalogClockPicker from './AnalogClockPicker';
 
 // Staggered entrance animation variants for station and package list items
 const stationContainerVariants = {
@@ -67,12 +66,6 @@ export default function BookView({
   });
   const [stationId, setStationId] = useState(selectedStationId || STATIONS[0].id);
   const [timeSlot, setTimeSlot] = useState("12:00:00 PM");
-  const [selectedHour, setSelectedHour] = useState("12");
-  const [selectedMinute, setSelectedMinute] = useState("00");
-  const [selectedSecond, setSelectedSecond] = useState("00");
-  const [selectedAmpm, setSelectedAmpm] = useState("PM");
-  const [isManualTime, setIsManualTime] = useState(false);
-  const [isClockOpen, setIsClockOpen] = useState(false);
   const [hours, setHours] = useState(1);
   const [durationUnit, setDurationUnit] = useState<'hours' | 'minutes'>('hours');
   const [playersCount, setPlayersCount] = useState(2);
@@ -90,9 +83,9 @@ export default function BookView({
     }
   }, [stationId]);
 
-  // Lock body scroll and completely hide footer when modal or clock is active
+  // Lock body scroll and completely hide footer when modal is active
   useEffect(() => {
-    if (bookingSuccess || isClockOpen) {
+    if (bookingSuccess) {
       document.body.classList.add('hide-footer-for-modal');
       document.body.style.overflow = 'hidden';
     } else {
@@ -103,14 +96,7 @@ export default function BookView({
       document.body.classList.remove('hide-footer-for-modal');
       document.body.style.overflow = '';
     };
-  }, [bookingSuccess, isClockOpen]);
-
-  // Sync custom hour/minute/second picker state to timeSlot
-  useEffect(() => {
-    if (!isManualTime) {
-      setTimeSlot(`${selectedHour}:${selectedMinute}:${selectedSecond} ${selectedAmpm}`);
-    }
-  }, [selectedHour, selectedMinute, selectedSecond, selectedAmpm, isManualTime]);
+  }, [bookingSuccess]);
 
   // Real-time synchronization & countdown clock ticker
   const [ticker, setTicker] = useState(0);
@@ -530,62 +516,20 @@ export default function BookView({
                   <label className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest font-semibold">
                     5. SESSION HOUR START
                   </label>
-                  {isManualTime && (
-                    <button
-                      type="button"
-                      onClick={() => setIsManualTime(false)}
-                      className="text-[8px] font-mono text-rose-400 hover:text-white uppercase tracking-wider font-extrabold transition-all cursor-pointer bg-rose-950/40 border border-rose-500/20 rounded-md py-0.5 px-2"
-                    >
-                      [ BACK TO DIAL ]
-                    </button>
-                  )}
+                  <span className="text-[8px] font-mono text-gray-500 uppercase font-semibold">
+                    KEYBOARD
+                  </span>
                 </div>
-                {isManualTime ? (
-                  <div className="relative">
-                    <input
-                      type="text"
-                      required
-                      value={timeSlot}
-                      onChange={(e) => setTimeSlot(e.target.value)}
-                      placeholder=""
-                      className="w-full bg-black rounded-lg border border-white/10 py-2.5 px-3 text-xs text-white focus:outline-none focus:border-[#ef4444] placeholder-gray-700 font-mono font-bold"
-                    />
-                    <span className="absolute right-3 top-2.5 text-[8px] font-mono text-gray-500 uppercase font-semibold">
-                      KEYBOARD
-                    </span>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIsClockOpen(true)}
-                    className="w-full bg-black rounded-lg border border-white/10 py-2.5 px-3 text-xs text-left text-white hover:border-rose-500/40 focus:outline-none transition-all flex items-center justify-between group cursor-pointer"
-                  >
-                    <span className="font-mono font-bold tracking-wider text-rose-200 text-sm">
-                      {selectedHour}:{selectedMinute}:{selectedSecond} {selectedAmpm}
-                    </span>
-                    <div className="flex items-center gap-1.5 text-[8px] font-mono text-rose-400 group-hover:text-white">
-                      <span>OPEN CLOCK</span>
-                      <Clock className="w-4 h-4 text-rose-500 animate-pulse" />
-                    </div>
-                  </button>
-                )}
-
-                {/* Highly-polished Analog Clock Dial Picker Portal Overlay */}
-                <AnalogClockPicker
-                  isOpen={isClockOpen}
-                  onClose={() => setIsClockOpen(false)}
-                  onKeyboardToggle={() => setIsManualTime(true)}
-                  currentHour={selectedHour}
-                  currentMinute={selectedMinute}
-                  currentSecond={selectedSecond}
-                  currentAmpm={selectedAmpm}
-                  onSet={(hour, minute, second, ampm) => {
-                    setSelectedHour(hour);
-                    setSelectedMinute(minute);
-                    setSelectedSecond(second);
-                    setSelectedAmpm(ampm);
-                  }}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={timeSlot}
+                    onChange={(e) => setTimeSlot(e.target.value)}
+                    placeholder="e.g. 12:00:00 PM"
+                    className="w-full bg-black rounded-lg border border-white/10 py-2.5 px-3 text-xs text-white focus:outline-none focus:border-[#ef4444] placeholder-gray-700 font-mono font-bold"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">

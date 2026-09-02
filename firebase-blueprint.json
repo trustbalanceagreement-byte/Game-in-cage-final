@@ -84,6 +84,26 @@
             "read": "true",
             "write": "true"
           }
+        },
+        "bill_submissions": {
+          "fields": {
+            "id": { "type": "string" },
+            "billNumber": { "type": "string" },
+            "userId": { "type": "string" },
+            "userName": { "type": "string" },
+            "userEmail": { "type": "string" },
+            "userPhone": { "type": "string" },
+            "coinsReward": { "type": "number" },
+            "status": { "type": "string" },
+            "createdAt": { "type": "number" },
+            "approvedAt": { "type": "number" },
+            "stationName": { "type": "string" },
+            "amount": { "type": "number" }
+          },
+          "rules": {
+            "read": "true",
+            "write": "true"
+          }
         }
       }
     }

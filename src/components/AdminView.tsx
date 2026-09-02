@@ -4,13 +4,30 @@ import {
   TrendingUp, Users, IndianRupee, Calendar, LogOut, 
   Search, PlusCircle, ShieldCheck, Gamepad2, Sword, Target, Sparkles, Flame,
   Video, Image, Play, Upload, X, Film, ImagePlus, Mail, Megaphone, Send, BellRing,
-  Info, Swords, Trophy, ChevronLeft, ChevronRight, ChevronDown, Check, Layers
+  Info, Swords, Trophy, ChevronLeft, ChevronRight, ChevronDown, Check, Layers,
+  Receipt, Coins, Clock
 } from 'lucide-react';
 import { STATIONS, GAMING_PACKAGES } from '../data';
 import { Booking } from '../types';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, getDocs, onSnapshot, getDocsFromServer, addDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { renderMediaElement } from './EventView';
+
+export interface BillSubmission {
+  id: string;
+  billNumber: string;
+  userId: string;
+  userName?: string;
+  userEmail?: string;
+  userPhone?: string;
+  coinsReward: number;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: number;
+  approvedAt?: number;
+  stationName?: string;
+  amount?: number;
+  utrNumber?: string;
+}
 
 interface FirebaseGamer {
   uid: string;
@@ -107,11 +124,19 @@ export default function AdminView() {
   
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'bookings' | 'users' | 'events' | 'hero' | 'tournaments'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'bills' | 'users' | 'events' | 'hero' | 'tournaments'>('bookings');
   const [eventSubTab, setEventSubTab] = useState<'bulletins' | 'tournaments'>('bulletins');
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const [simulatedLoad, setSimulatedLoad] = useState(false);
+
+  // Bill Approval Management State
+  const [billSubmissions, setBillSubmissions] = useState<BillSubmission[]>([]);
+  const [approvingBillId, setApprovingBillId] = useState<string | null>(null);
+  const [rejectingBillId, setRejectingBillId] = useState<string | null>(null);
+  const [deletingBillId, setDeletingBillId] = useState<string | null>(null);
+  const [billFilter, setBillFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [billFeedbackMsg, setBillFeedbackMsg] = useState('');
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -825,6 +850,142 @@ export default function AdminView() {
     return () => unsubscribe();
   }, [isAdminLoggedIn]);
 
+  // Live real-time Firestore listener for Bill Submissions
+  useEffect(() => {
+    if (!isAdminLoggedIn) return;
+
+    const unsubscribe = onSnapshot(collection(db, "bill_submissions"), (snapshot) => {
+      const list: BillSubmission[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        list.push({
+          id: docSnap.id,
+          billNumber: data.billNumber || '',
+          userId: data.userId || '',
+          userName: data.userName || 'Gamer',
+          userEmail: data.userEmail || '',
+          userPhone: data.userPhone || '',
+          coinsReward: Number(data.coinsReward) || 10,
+          status: (data.status as any) || 'pending',
+          createdAt: data.createdAt || Date.now(),
+          approvedAt: data.approvedAt,
+          stationName: data.stationName || 'Gaming Station',
+          amount: data.amount,
+          utrNumber: data.utrNumber
+        });
+      });
+      // Sort newest first
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setBillSubmissions(list);
+    }, (error) => {
+      console.warn("Live bill_submissions listener warning:", error);
+    });
+
+    return () => unsubscribe();
+  }, [isAdminLoggedIn]);
+
+  // Handle Admin Bill Approval
+  const handleApproveBill = async (submission: BillSubmission) => {
+    setApprovingBillId(submission.id);
+    setBillFeedbackMsg('');
+    try {
+      // 1. Update bill submission in Firestore
+      const billRef = doc(db, "bill_submissions", submission.id);
+      await setDoc(billRef, {
+        status: 'approved',
+        approvedAt: Date.now()
+      }, { merge: true });
+
+      // 2. Award Cage Coins to user
+      const rewardAmount = submission.coinsReward || 10;
+      if (submission.userId && !submission.userId.startsWith('fb-') && submission.userId !== 'guest-user') {
+        try {
+          const userDocRef = doc(db, 'users', submission.userId);
+          
+          // Send notification to the user in their account
+          const notifRef = doc(collection(db, 'users', submission.userId, 'notifications'));
+          await setDoc(notifRef, {
+            id: notifRef.id,
+            title: `✓ Bill #${submission.billNumber} Approved (+${rewardAmount} CGC)`,
+            message: `Admin has approved your bill #${submission.billNumber}! +${rewardAmount} Cage Coins have been credited to your wallet balance.`,
+            createdAt: Date.now(),
+            viewed: false
+          });
+
+          // Also credit coins directly into the user's document
+          const userSnap = registeredUsers.find(u => u.uid === submission.userId);
+          const currentCoins = (userSnap as any)?.cageCoins || 0;
+          await setDoc(userDocRef, { cageCoins: currentCoins + rewardAmount }, { merge: true });
+        } catch (uErr) {
+          console.warn("User coin credit sync warning:", uErr);
+        }
+      }
+
+      // Also update local storage if user is operating on same client
+      const currentLocalCoins = Number(localStorage.getItem('cage_coins') || '0');
+      localStorage.setItem('cage_coins', String(currentLocalCoins + rewardAmount));
+
+      setBillFeedbackMsg(`✓ Bill #${submission.billNumber} approved! +${rewardAmount} Cage Coins credited to ${submission.userName || 'user'}.`);
+      setTimeout(() => setBillFeedbackMsg(''), 5000);
+    } catch (err: any) {
+      console.error("Failed to approve bill:", err);
+      setBillFeedbackMsg(`Failed to approve bill: ${err?.message || 'Error'}`);
+    } finally {
+      setApprovingBillId(null);
+    }
+  };
+
+  // Handle Admin Bill Rejection
+  const handleRejectBill = async (submission: BillSubmission) => {
+    setRejectingBillId(submission.id);
+    setBillFeedbackMsg('');
+    try {
+      const billRef = doc(db, "bill_submissions", submission.id);
+      await setDoc(billRef, {
+        status: 'rejected',
+        rejectedAt: Date.now()
+      }, { merge: true });
+
+      if (submission.userId && !submission.userId.startsWith('fb-') && submission.userId !== 'guest-user') {
+        try {
+          const notifRef = doc(collection(db, 'users', submission.userId, 'notifications'));
+          await setDoc(notifRef, {
+            id: notifRef.id,
+            title: `Bill #${submission.billNumber} Verification Declined`,
+            message: `Your submitted bill #${submission.billNumber} could not be verified by Admin. Cage Coins were not awarded. Please contact desk support if you have questions.`,
+            createdAt: Date.now(),
+            viewed: false
+          });
+        } catch (uErr) {
+          console.warn("Notification error:", uErr);
+        }
+      }
+
+      setBillFeedbackMsg(`Bill #${submission.billNumber} declined.`);
+      setTimeout(() => setBillFeedbackMsg(''), 4000);
+    } catch (err: any) {
+      console.error("Failed to reject bill:", err);
+      setBillFeedbackMsg(`Failed to reject bill: ${err?.message || 'Error'}`);
+    } finally {
+      setRejectingBillId(null);
+    }
+  };
+
+  // Handle Delete Bill Record
+  const handleDeleteBillSubmission = async (id: string) => {
+    setDeletingBillId(id);
+    try {
+      await deleteDoc(doc(db, "bill_submissions", id));
+      setBillFeedbackMsg('Bill record deleted successfully.');
+      setTimeout(() => setBillFeedbackMsg(''), 3000);
+    } catch (err: any) {
+      console.error("Failed to delete bill record:", err);
+      setBillFeedbackMsg(`Delete failed: ${err?.message || 'Error'}`);
+    } finally {
+      setDeletingBillId(null);
+    }
+  };
+
   const loadFirebaseUsers = () => {
     // Highly efficient fake-trigger backplane sync effect; actual data is handled in real-time by onSnapshot
     setIsFetchingUsers(true);
@@ -1255,12 +1416,14 @@ export default function AdminView() {
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-red-50 text-red-600 border border-red-100">
                   {activeTab === 'bookings' && <Calendar className="h-4 w-4" />}
+                  {activeTab === 'bills' && <Receipt className="h-4 w-4" />}
                   {activeTab === 'users' && <Users className="h-4 w-4" />}
                   {activeTab === 'events' && <Megaphone className="h-4 w-4" />}
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-gray-900 tracking-wide truncate">
                     {activeTab === 'bookings' && `View Bookings (${bookings.length})`}
+                    {activeTab === 'bills' && `Bill Approvals (${billSubmissions.filter(b => b.status === 'pending').length} Pending)`}
                     {activeTab === 'users' && `Registered Users (${registeredUsers.length})`}
                     {activeTab === 'events' && `Event Management (${eventPosts.length + tournaments.length})`}
                   </p>
@@ -1287,6 +1450,14 @@ export default function AdminView() {
                     count: bookings.length,
                     icon: Calendar,
                     desc: 'Manage slot reservations & timing'
+                  },
+                  {
+                    id: 'bills' as const,
+                    label: 'Bill Approvals (Cage Coins)',
+                    count: billSubmissions.filter(b => b.status === 'pending').length,
+                    icon: Receipt,
+                    desc: 'Verify bills to award Cage Coins',
+                    isBadge: billSubmissions.filter(b => b.status === 'pending').length > 0
                   },
                   {
                     id: 'users' as const,
@@ -1335,7 +1506,11 @@ export default function AdminView() {
                             </span>
                             {item.count !== null && (
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
-                                isSelected ? 'bg-red-200/70 text-red-800' : 'bg-gray-100 text-gray-600'
+                                (item as any).isBadge
+                                  ? 'bg-amber-500 text-black font-black animate-pulse'
+                                  : isSelected 
+                                  ? 'bg-red-200/70 text-red-800' 
+                                  : 'bg-gray-100 text-gray-600'
                               }`}>
                                 {item.count}
                               </span>
@@ -1504,6 +1679,319 @@ export default function AdminView() {
       )}
 
 
+
+      {/* Bill Approvals Section (Cage Coins) */}
+      {activeTab === 'bills' && (() => {
+        const totalBills = billSubmissions.length;
+        const pendingBills = billSubmissions.filter(b => b.status === 'pending');
+        const approvedBills = billSubmissions.filter(b => b.status === 'approved');
+        const rejectedBills = billSubmissions.filter(b => b.status === 'rejected');
+
+        const filteredBills = billSubmissions.filter(b => {
+          if (billFilter === 'pending') return b.status === 'pending';
+          if (billFilter === 'approved') return b.status === 'approved';
+          if (billFilter === 'rejected') return b.status === 'rejected';
+          return true;
+        });
+
+        const totalCoinsAwarded = approvedBills.reduce((acc, curr) => acc + (curr.coinsReward || 10), 0);
+
+        return (
+          <div className="space-y-6 text-left">
+            {/* Header Banner */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 shrink-0 shadow-sm">
+                  <Receipt className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
+                    <span>Bill Approvals & Cage Coin Rewards</span>
+                    {pendingBills.length > 0 && (
+                      <span className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full animate-pulse">
+                        {pendingBills.length} PENDING
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1 max-w-xl leading-relaxed">
+                    When gamers input their bill number after paying, their request lands here. Verify the bill number, then click <strong>Approve</strong> to credit Cage Coins to their account.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold text-gray-500 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg">
+                  Total Awarded: <span className="text-amber-600 font-black">{totalCoinsAwarded} CGC</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Notification alert */}
+            {billFeedbackMsg && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl font-semibold flex items-center justify-between shadow-sm animate-in fade-in duration-200">
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>{billFeedbackMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBillFeedbackMsg('')}
+                  className="text-emerald-700 hover:text-emerald-900 p-1"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Metric Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
+                <div className="flex justify-between items-center text-gray-500 text-xs font-medium">
+                  <span>Total Bills</span>
+                  <Receipt className="h-4 w-4 text-gray-400" />
+                </div>
+                <p className="text-2xl font-black text-gray-900 mt-1 font-mono">{totalBills}</p>
+              </div>
+
+              <div className="bg-white border border-amber-200 p-4 rounded-xl shadow-sm bg-gradient-to-br from-amber-50/50 to-white">
+                <div className="flex justify-between items-center text-amber-700 text-xs font-bold">
+                  <span>Pending Approval</span>
+                  <Clock className="h-4 w-4 text-amber-600" />
+                </div>
+                <p className="text-2xl font-black text-amber-600 mt-1 font-mono">{pendingBills.length}</p>
+              </div>
+
+              <div className="bg-white border border-emerald-200 p-4 rounded-xl shadow-sm bg-gradient-to-br from-emerald-50/50 to-white">
+                <div className="flex justify-between items-center text-emerald-700 text-xs font-bold">
+                  <span>Approved</span>
+                  <Check className="h-4 w-4 text-emerald-600" />
+                </div>
+                <p className="text-2xl font-black text-emerald-600 mt-1 font-mono">{approvedBills.length}</p>
+              </div>
+
+              <div className="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
+                <div className="flex justify-between items-center text-gray-500 text-xs font-medium">
+                  <span>Declined</span>
+                  <X className="h-4 w-4 text-red-400" />
+                </div>
+                <p className="text-2xl font-black text-gray-500 mt-1 font-mono">{rejectedBills.length}</p>
+              </div>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-2 border-b border-gray-200/80 pb-3 overflow-x-auto">
+              {[
+                { key: 'all' as const, label: 'All Bills', count: totalBills },
+                { key: 'pending' as const, label: 'Pending Review', count: pendingBills.length, highlight: pendingBills.length > 0 },
+                { key: 'approved' as const, label: 'Approved', count: approvedBills.length },
+                { key: 'rejected' as const, label: 'Declined', count: rejectedBills.length }
+              ].map(f => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setBillFilter(f.key)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+                    billFilter === f.key
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  <span>{f.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    billFilter === f.key
+                      ? 'bg-red-750 text-white'
+                      : f.highlight
+                      ? 'bg-amber-100 text-amber-800 font-black'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {f.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Submissions List / Table */}
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              {filteredBills.length === 0 ? (
+                <div className="p-12 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
+                    <Receipt className="h-6 w-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider">No bill submissions found</h4>
+                  <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                    {billFilter === 'pending'
+                      ? 'All submitted bill numbers have been verified and processed!'
+                      : 'When gamers input bill numbers in payment checkout, they will appear here.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {filteredBills.map((sub) => {
+                    const isPending = sub.status === 'pending';
+                    const isApproved = sub.status === 'approved';
+                    const isRejected = sub.status === 'rejected';
+
+                    return (
+                      <div
+                        key={sub.id}
+                        className={`p-4 sm:p-5 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+                          isPending ? 'bg-amber-50/30 hover:bg-amber-50/50' : 'hover:bg-gray-50/70'
+                        }`}
+                      >
+                        {/* Bill and Gamer Info */}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4 min-w-0">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                              isPending 
+                                ? 'bg-amber-100 text-amber-700 border-amber-300' 
+                                : isApproved 
+                                ? 'bg-emerald-100 text-emerald-700 border-emerald-300' 
+                                : 'bg-gray-100 text-gray-500 border-gray-200'
+                            }`}>
+                              <Receipt className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-black text-sm bg-gray-900 text-white px-2 py-0.5 rounded tracking-wider shadow-sm">
+                                  BILL #{sub.billNumber}
+                                </span>
+                                {isPending && (
+                                  <span className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                                    <Clock className="h-3 w-3" />
+                                    PENDING APPROVAL
+                                  </span>
+                                )}
+                                {isApproved && (
+                                  <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                                    <Check className="h-3 w-3" />
+                                    APPROVED
+                                  </span>
+                                )}
+                                {isRejected && (
+                                  <span className="bg-red-100 text-red-800 border border-red-200 text-[10px] font-bold px-2 py-0.5 rounded-full font-mono">
+                                    DECLINED
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                                <span>Submitted: {new Date(sub.createdAt).toLocaleString()}</span>
+                                {sub.approvedAt && (
+                                  <span className="text-emerald-600 font-semibold">• Approved: {new Date(sub.approvedAt).toLocaleTimeString()}</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Gamer Profile snippet */}
+                          <div className="sm:border-l sm:border-gray-200 sm:pl-4 space-y-0.5">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900">
+                              <User className="h-3.5 w-3.5 text-gray-400" />
+                              <span>{sub.userName || 'Gamer'}</span>
+                            </div>
+                            <div className="text-[11px] text-gray-500 font-mono">
+                              {sub.userPhone ? `Phone: ${sub.userPhone}` : sub.userEmail ? `Email: ${sub.userEmail}` : `User ID: ${sub.userId.substring(0, 8)}...`}
+                            </div>
+                            {sub.stationName && (
+                              <div className="text-[11px] text-gray-500">
+                                Station: <strong className="text-gray-700">{sub.stationName}</strong> {sub.amount ? `(₹${sub.amount})` : ''}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Reward & Action controls */}
+                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-gray-100">
+                          <div className="bg-amber-50 border border-amber-200/80 px-3 py-1.5 rounded-xl flex items-center gap-2">
+                            <Coins className="h-4 w-4 text-amber-600 animate-pulse" />
+                            <div>
+                              <span className="block text-[10px] font-mono uppercase text-amber-700 font-bold leading-none">Reward</span>
+                              <span className="text-xs font-black text-amber-900 font-mono">+{sub.coinsReward || 10} CGC</span>
+                            </div>
+                          </div>
+
+                          {isPending && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleApproveBill(sub)}
+                                disabled={approvingBillId === sub.id || rejectingBillId === sub.id}
+                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer"
+                              >
+                                {approvingBillId === sub.id ? (
+                                  <>
+                                    <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                                    <span>Approving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="h-3.5 w-3.5" />
+                                    <span>Approve & Credit Coins</span>
+                                  </>
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRejectBill(sub)}
+                                disabled={approvingBillId === sub.id || rejectingBillId === sub.id}
+                                className="px-3 py-2 bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-700 border border-gray-200 hover:border-red-200 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                              >
+                                {rejectingBillId === sub.id ? (
+                                  <span>Declining...</span>
+                                ) : (
+                                  <>
+                                    <X className="h-3.5 w-3.5" />
+                                    <span>Decline</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
+
+                          {isApproved && (
+                            <div className="flex items-center gap-2">
+                              <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-bold font-mono flex items-center gap-1.5">
+                                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                <span>Coins Credited</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBillSubmission(sub.id)}
+                                disabled={deletingBillId === sub.id}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete record"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+
+                          {isRejected && (
+                            <div className="flex items-center gap-2">
+                              <div className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-bold font-mono">
+                                Declined
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBillSubmission(sub.id)}
+                                disabled={deletingBillId === sub.id}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete record"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Firebase Registered Users List */}
       {activeTab === 'users' && (() => {

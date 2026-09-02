@@ -8,17 +8,24 @@ import {
   CheckCircle, 
   QrCode, 
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   RefreshCw,
   Coins,
   Wallet,
   Gift,
   AlertTriangle,
-  Smartphone
+  Smartphone,
+  Receipt,
+  Clock,
+  Send,
+  FileText,
+  Sparkles
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PaymentDetails, Booking } from '../types';
 import { auth, db } from '../firebase';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useProfile } from './AuthGate';
 
 interface PaymentViewProps {
@@ -59,6 +66,19 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
   const [cageCoinError, setCageCoinError] = useState('');
   const [rewardedCoins, setRewardedCoins] = useState<number | null>(null);
   const [coinsDeducted, setCoinsDeducted] = useState<number | null>(null);
+
+  // Bill Number Dropdown & Submission States
+  const [isBillDropdownOpen, setIsBillDropdownOpen] = useState(false);
+  const [billNumber, setBillNumber] = useState('');
+  const [billSubmitting, setBillSubmitting] = useState(false);
+  const [billError, setBillError] = useState('');
+  const [billSuccessMsg, setBillSuccessMsg] = useState('');
+  const [lastSubmittedBill, setLastSubmittedBill] = useState<string | null>(() => {
+    return localStorage.getItem('gic_last_submitted_bill') || null;
+  });
+  const [billStatus, setBillStatus] = useState<'pending' | 'approved' | 'rejected' | null>(() => {
+    return (localStorage.getItem('gic_last_bill_status') as any) || null;
+  });
 
   // Pre-locked merchant parameters
   const STORE_NAME = "Game In Cage";
@@ -219,6 +239,31 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
     }, 400);
   };
 
+  // Listen for real-time bill approval status from Firestore
+  useEffect(() => {
+    const currentUid = auth.currentUser?.uid || profile?.uid;
+    if (!currentUid) return;
+
+    try {
+      const unsub = onSnapshot(collection(db, "bill_submissions"), (snapshot) => {
+        snapshot.forEach((d) => {
+          const data = d.data();
+          if (data.userId === currentUid && (data.billNumber === lastSubmittedBill || !lastSubmittedBill)) {
+            if (data.status) {
+              setBillStatus(data.status);
+              localStorage.setItem('gic_last_bill_status', data.status);
+            }
+          }
+        });
+      }, (err) => {
+        console.warn("Bill snapshot listen warning:", err);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn("Bill listener init error:", e);
+    }
+  }, [lastSubmittedBill, profile?.uid]);
+
   const copyUpiToClipboard = () => {
     navigator.clipboard.writeText(UPI_ID);
     setCopiedUpi(true);
@@ -318,19 +363,65 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
     }
   };
 
-  // 2. CONFIRM PAYMENT VIA UPI APPS & AWARD 1-5 RANDOM CAGE COINS (MANDATORY UTR)
+  // 2. CONFIRM BILL NUMBER DIRECTLY FOR ADMIN APPROVAL
+  const handleConfirmBillNumber = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setBillError('');
+    setBillSuccessMsg('');
+
+    const cleanBill = billNumber.trim();
+    if (!cleanBill) {
+      setBillError('Please enter your bill / invoice number.');
+      return;
+    }
+
+    setBillSubmitting(true);
+    try {
+      const currentUser = auth.currentUser;
+      const submissionId = `bill-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+      const submissionData = {
+        id: submissionId,
+        billNumber: cleanBill,
+        userId: currentUser?.uid || profile?.uid || 'guest-user',
+        userName: profile?.name || paymentDetails.playerName || 'Rajesh Sharma',
+        userEmail: profile?.email || currentUser?.email || '',
+        userPhone: profile?.phone || paymentDetails.phone || '',
+        coinsReward: 10,
+        status: 'pending' as const,
+        createdAt: Date.now(),
+        stationName: paymentDetails.stationName || 'Gaming Station',
+        amount: lockedAmount
+      };
+
+      try {
+        await setDoc(doc(db, "bill_submissions", submissionId), submissionData);
+      } catch (dbErr) {
+        console.warn("Firestore bill save warning:", dbErr);
+      }
+
+      localStorage.setItem('gic_last_submitted_bill', cleanBill);
+      localStorage.setItem('gic_last_bill_status', 'pending');
+      setLastSubmittedBill(cleanBill);
+      setBillStatus('pending');
+      setBillSuccessMsg(`Bill #${cleanBill} submitted to Admin Panel! Cage Coins will be added upon Admin approval.`);
+    } catch (err: any) {
+      console.error("Bill confirmation failed:", err);
+      setBillError("Failed to submit bill number. Please try again.");
+    } finally {
+      setBillSubmitting(false);
+    }
+  };
+
+  // 3. CONFIRM PAYMENT VIA UPI APPS & QUEUE BILL / UTR FOR ADMIN REVIEW
   const handleVerifyAndConfirm = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setUtrError('');
     
     const cleanUtr = utrNumber.trim();
-    if (!cleanUtr) {
-      setUtrError('Please enter your 12-digit UPI reference (UTR) number to lock booking and claim Cage Coins.');
-      return;
-    }
-    
-    if (cleanUtr.length < 8) {
-      setUtrError('Invalid UTR number. Please enter a valid 12-digit reference number from your UPI app receipt.');
+    const cleanBill = billNumber.trim();
+
+    if (!cleanUtr && !cleanBill) {
+      setUtrError('Please enter your 12-digit UPI reference (UTR) or Bill Number to confirm.');
       return;
     }
 
@@ -338,31 +429,35 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
 
     try {
       const bookingId = paymentDetails.bookingId || `gic-${Date.now()}-${Math.floor(Math.random() * 900)}`;
-      
-      // Calculate random Cage Coins reward (1, 2, 3, 4, or 5) for paying via UPI and submitting valid UTR
-      const rewardCoinAmount = Math.floor(Math.random() * 5) + 1;
-      const updatedTotalCoins = currentCageCoins + rewardCoinAmount;
-
-      // Automatically credit Cage Coins to user's profile
-      localStorage.setItem('cage_coins', String(updatedTotalCoins));
-
       const currentUser = auth.currentUser;
-      if (currentUser) {
-        try {
-          const userDocRef = doc(db, 'users', currentUser.uid);
-          await setDoc(userDocRef, { cageCoins: updatedTotalCoins }, { merge: true });
 
-          const notifRef = doc(collection(db, 'users', currentUser.uid, 'notifications'));
-          await setDoc(notifRef, {
-            id: notifRef.id,
-            title: `Reward: +${rewardCoinAmount} Cage Coins Added`,
-            message: `You earned +${rewardCoinAmount} Cage Coins for verifying UPI UTR (${cleanUtr}) for ${paymentDetails.stationName}! New Balance: ${updatedTotalCoins} CGC.`,
-            createdAt: Date.now(),
-            bookingId: bookingId,
-            autoDeleteAt: Date.now() + 10 * 60 * 1000
-          });
-        } catch (err) {
-          console.warn("Firestore sync warning for reward coins:", err);
+      // Auto-submit Bill Number to Admin Panel if entered
+      if (cleanBill || cleanUtr) {
+        const submissionId = `bill-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+        const billToSave = cleanBill || `UTR-${cleanUtr}`;
+        const submissionData = {
+          id: submissionId,
+          billNumber: billToSave,
+          userId: currentUser?.uid || profile?.uid || 'guest-user',
+          userName: profile?.name || paymentDetails.playerName || 'Rajesh Sharma',
+          userEmail: profile?.email || currentUser?.email || '',
+          userPhone: profile?.phone || paymentDetails.phone || '',
+          coinsReward: 10,
+          status: 'pending' as const,
+          createdAt: Date.now(),
+          stationName: paymentDetails.stationName || 'Gaming Station',
+          amount: lockedAmount,
+          utrNumber: cleanUtr || ''
+        };
+
+        try {
+          await setDoc(doc(db, "bill_submissions", submissionId), submissionData);
+          localStorage.setItem('gic_last_submitted_bill', billToSave);
+          localStorage.setItem('gic_last_bill_status', 'pending');
+          setLastSubmittedBill(billToSave);
+          setBillStatus('pending');
+        } catch (dbErr) {
+          console.warn("Firestore bill save warning:", dbErr);
         }
       }
 
@@ -380,7 +475,7 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
         notes: paymentDetails.notes || '',
         status: 'approved',
         paymentStatus: 'paid',
-        transactionId: cleanUtr,
+        transactionId: cleanUtr || cleanBill || `TXN-${Date.now().toString().slice(-6)}`,
         paymentMethod: selectedApp ? `${selectedApp} UPI` : 'UPI Gateway',
         createdAt: new Date().toLocaleString(),
         userId: auth.currentUser?.uid || undefined
@@ -392,24 +487,22 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
       currentList = [confirmedBooking, ...currentList.filter(b => b.id !== bookingId)];
       localStorage.setItem('gic_bookings', JSON.stringify(currentList));
 
-      // Persist to Cloud Firestore if logged in
       if (currentUser) {
         try {
           const bookingDocRef = doc(db, 'bookings', bookingId);
           await setDoc(bookingDocRef, confirmedBooking, { merge: true });
         } catch (err) {
-          console.warn("Firestore sync warning:", err);
+          console.warn("Firestore booking sync warning:", err);
         }
       }
 
-      setRewardedCoins(rewardCoinAmount);
       setPaymentSuccess(confirmedBooking);
       if (onPaymentComplete) {
         onPaymentComplete(confirmedBooking);
       }
     } catch (err: any) {
       console.error("Payment confirmation failed:", err);
-      setUtrError("Payment confirmation failed. Please try again.");
+      setUtrError("Booking confirmation failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -1007,6 +1100,113 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
 
               </div>
 
+              {/* DROPDOWN MENU: BILL NUMBER FOR CAGE COINS */}
+              <div className="pt-3 border-t border-white/[0.08] space-y-2 text-left">
+                <button
+                  type="button"
+                  onClick={() => setIsBillDropdownOpen(!isBillDropdownOpen)}
+                  className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500/10 via-black to-black/70 border border-amber-500/30 hover:border-amber-400/80 transition-all cursor-pointer group shadow-sm"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 group-hover:scale-105 transition-transform">
+                      <Receipt className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs sm:text-[13px] font-bold text-white font-sans group-hover:text-amber-300 transition-colors">
+                          Bill Number
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 font-sans">
+                        Click to enter bill number & earn Cage Coins
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {billStatus === 'pending' && (
+                      <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 border border-amber-500/30">
+                        <Clock className="h-3 w-3 animate-spin" /> Pending
+                      </span>
+                    )}
+                    {billStatus === 'approved' && (
+                      <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-500/30">
+                        <CheckCircle className="h-3 w-3" /> Approved
+                      </span>
+                    )}
+                    <div className="h-7 w-7 rounded-lg bg-white/5 group-hover:bg-amber-500 text-gray-400 group-hover:text-black flex items-center justify-center transition-colors">
+                      {isBillDropdownOpen ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </div>
+                </button>
+
+                {/* Dropdown Content */}
+                {isBillDropdownOpen && (
+                  <div className="p-3.5 bg-black/90 rounded-xl border border-amber-500/30 space-y-3 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="space-y-1">
+                      <label className="block text-[9.5px] font-mono text-gray-300 uppercase tracking-widest font-bold">
+                        Enter Bill Number / Invoice #
+                      </label>
+                      <input
+                        type="text"
+                        value={billNumber}
+                        onChange={(e) => {
+                          setBillNumber(e.target.value);
+                          if (billError) setBillError('');
+                          if (billSuccessMsg) setBillSuccessMsg('');
+                        }}
+                        placeholder="e.g. BILL-10842 or Cafe Slip No"
+                        className={`w-full bg-black border ${
+                          billError ? 'border-red-500 ring-1 ring-red-500/30' : 'border-white/15 focus:border-amber-400'
+                        } rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none transition-all placeholder-gray-600`}
+                      />
+                      {billError && (
+                        <p className="text-[10px] text-red-400 font-mono mt-1 font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                          <span>{billError}</span>
+                        </p>
+                      )}
+                      {billSuccessMsg && (
+                        <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-[11px] font-medium flex items-center gap-2 mt-1.5">
+                          <CheckCircle className="h-4 w-4 shrink-0 text-emerald-400" />
+                          <span>{billSuccessMsg}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bill Confirm Button */}
+                    <button
+                      type="button"
+                      disabled={billSubmitting || !billNumber.trim()}
+                      onClick={handleConfirmBillNumber}
+                      className={`w-full py-2.5 rounded-xl font-sans font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md ${
+                        !billNumber.trim()
+                          ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-white/5'
+                          : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black shadow-amber-500/20 active:scale-[0.99]'
+                      }`}
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      {billSubmitting ? 'Confirming & Sending to Admin...' : 'Confirm Bill Number'}
+                    </button>
+
+                    {lastSubmittedBill && (
+                      <div className="pt-2 flex items-center justify-between text-[10px] font-mono text-gray-400 border-t border-white/[0.06]">
+                        <span>Last Submitted: <strong className="text-white">#{lastSubmittedBill}</strong></span>
+                        <span className={`font-bold ${
+                          billStatus === 'approved' ? 'text-emerald-400' : billStatus === 'rejected' ? 'text-red-400' : 'text-amber-400'
+                        }`}>
+                          {billStatus === 'approved' ? '✅ Approved' : billStatus === 'rejected' ? '❌ Declined' : '⏳ Pending Admin Review'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Manual Verification & Auto-Confirm Section for UPI */}
               <form onSubmit={handleVerifyAndConfirm} className="space-y-3.5 pt-3.5 border-t border-white/[0.08]">
                 <div className="space-y-1 text-left">
@@ -1015,7 +1215,7 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
                       UPI 12-Digit Reference (UTR) Number
                     </label>
                     <span className="text-[8px] font-mono font-bold uppercase text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/30">
-                      MANDATORY FOR COINS
+                      OPTIONAL / LOCK BOOKING
                     </span>
                   </div>
                   <input
@@ -1040,17 +1240,7 @@ export default function PaymentView({ paymentDetails, onBack, onPaymentComplete 
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    onClick={(e) => {
-                      if (!utrNumber.trim()) {
-                        e.preventDefault();
-                        setUtrError('Please enter your 12-digit UPI reference (UTR) number first to claim Cage Coins and lock booking.');
-                      }
-                    }}
-                    className={`flex-1 py-3 rounded-xl font-sans font-black text-xs uppercase tracking-wider transition-all shadow-md ${
-                      !utrNumber.trim()
-                        ? 'bg-neutral-200/90 hover:bg-neutral-100 text-neutral-800 cursor-pointer border border-neutral-300'
-                        : 'bg-white hover:bg-neutral-200 active:scale-[0.99] text-black cursor-pointer shadow-white/10'
-                    }`}
+                    className={`flex-1 py-3 rounded-xl font-sans font-black text-xs uppercase tracking-wider transition-all shadow-md bg-white hover:bg-neutral-200 active:scale-[0.99] text-black cursor-pointer shadow-white/10`}
                   >
                     {isSubmitting ? "Locking Reservation..." : "I Have Paid & Lock Booking"}
                   </button>
